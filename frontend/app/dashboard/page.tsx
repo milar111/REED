@@ -1,50 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import JSZip from 'jszip';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
+import PlaylistCard from '../components/PlaylistCard';
+import DownloadModal from '../components/DownloadModal';
+import { Playlist } from '../types';
 
-interface FileSystemDirectoryHandle {
-  name: string;
-  getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle>;
-}
-
-interface FileSystemFileHandle {
-  name: string;
-  createWritable(options?: { keepExistingData?: boolean }): Promise<FileSystemWritableFileStream>;
-}
-
-interface FileSystemWritableFileStream {
-  write(data: Blob | string): Promise<void>;
-  close(): Promise<void>;
-}
+export {};
 
 declare global {
   interface Window {
-    showDirectoryPicker(): Promise<FileSystemDirectoryHandle>;
+    showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
   }
-}
-
-interface Image {
-  url: string;
-  height: number | null;
-  width: number | null;
-}
-
-interface Owner {
-  id: string;
-  display_name: string;
-}
-
-interface Tracks {
-  total: number;
-}
-
-interface Playlist {
-  id: string;
-  name: string;
-  images: Image[];
-  owner: Owner;
-  tracks: Tracks;
 }
 
 export default function Dashboard() {
@@ -53,23 +22,56 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [downloadingPlaylists, setDownloadingPlaylists] = useState<Set<string>>(new Set());
 
-  const handleDownload = async (playlistId: string) => {
-    let selectedDirHandle: FileSystemDirectoryHandle;
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [selectedPlaylistForDownload, setSelectedPlaylistForDownload] = useState<string | null>(null);
+  const [selectedDirHandle, setSelectedDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [saveFormat, setSaveFormat] = useState<'zip' | 'folder'>('zip');
+
+  const openDownloadModal = (playlistId: string) => {
+    setSelectedPlaylistForDownload(playlistId);
+    setModalOpen(true);
+  };
+
+  //select dir
+  const handleSelectFolder = async () => {
     try {
-      setDownloadingPlaylists((prev) => new Set(prev).add(playlistId));
+      const dirHandle = await window.showDirectoryPicker();
+      setSelectedDirHandle(dirHandle);
+    } catch (e) {
+      console.error('Folder selection cancelled or failed:', e);
+    }
+  };
 
-      // show dir picker
-      selectedDirHandle = await window.showDirectoryPicker();
+  // download process when the user confirms
+  const startDownload = async () => {
+    if (!selectedPlaylistForDownload || !selectedDirHandle) {
+      alert('Please select a folder to save your music.');
+      return;
+    }
+    const playlistId = selectedPlaylistForDownload;
+    setModalOpen(false);
+    setDownloadingPlaylists((prev) => new Set(prev).add(playlistId));
 
-      //playlist name
-      const playlistName = playlists.find((p) => p.id === playlistId)?.name || playlistId;
-      const fileHandle = await selectedDirHandle.getFileHandle(`${playlistName}.zip`, { create: true });
+    const playlistName = playlists.find((p) => p.id === playlistId)?.name || playlistId;
+    let fileName = saveFormat === 'zip' ? `${playlistName}.zip` : playlistName;
+
+    try {
+      let targetHandle: FileSystemFileHandle | FileSystemDirectoryHandle;
+      if (saveFormat === 'zip') {
+        targetHandle = await selectedDirHandle.getFileHandle(fileName, { create: true });
+      } else {
+        if (!selectedDirHandle.getDirectoryHandle) {
+          throw new Error("Directory creation is not supported in this browser.");
+        }
+        targetHandle = await selectedDirHandle.getDirectoryHandle(fileName, { create: true });
+      }
 
       const formData = new FormData();
       formData.append('download_dir', selectedDirHandle.name);
       formData.append('playlist_name', playlistName);
+      formData.append('format', saveFormat);
 
-      //download on the server
+      // download on the server
       const response = await fetch(`http://localhost:8000/download/${playlistId}`, {
         method: 'POST',
         credentials: 'include',
@@ -79,7 +81,7 @@ export default function Dashboard() {
         throw new Error('Download failed to start on the server');
       }
 
-      // 2sec
+      //2 seconds
       const pollInterval = setInterval(async () => {
         try {
           const statusResponse = await fetch(
@@ -104,10 +106,34 @@ export default function Dashboard() {
               }
               const blob = await archiveResponse.blob();
 
-              const writable = await fileHandle.createWritable();
-              await writable.write(blob);
-              await writable.close();
-
+              if (saveFormat === 'zip') {
+                const writable = await (targetHandle as FileSystemFileHandle).createWritable();
+                await writable.write(blob);
+                await writable.close();
+              } else {
+                // normal folder format
+                const jszip = new JSZip();
+                const zipContent = await jszip.loadAsync(blob);
+                for (const [relativePath, zipEntryRaw] of Object.entries(zipContent.files)) {
+                  const zipEntry = zipEntryRaw as JSZip.JSZipObject;
+                  if (!zipEntry.dir) {
+                    const fileData = await zipEntry.async('blob');
+                    const pathParts = relativePath.split('/').filter(Boolean);
+                    if (pathParts.length === 0) continue;
+                    let currentDir = targetHandle as FileSystemDirectoryHandle;
+                    for (let i = 0; i < pathParts.length - 1; i++) {
+                      if (!currentDir.getDirectoryHandle) {
+                        throw new Error("Directory creation is not supported in this browser.");
+                      }
+                      currentDir = await currentDir.getDirectoryHandle(pathParts[i], { create: true });
+                    }
+                    const fileHandle = await currentDir.getFileHandle(pathParts[pathParts.length - 1], { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(fileData);
+                    await writable.close();
+                  }
+                }
+              }
               alert('Download complete and saved to your selected folder.');
             }
             setDownloadingPlaylists((prev) => {
@@ -134,6 +160,9 @@ export default function Dashboard() {
         newSet.delete(playlistId);
         return newSet;
       });
+    } finally {
+      setSelectedPlaylistForDownload(null);
+      setSelectedDirHandle(null);
     }
   };
 
@@ -143,17 +172,15 @@ export default function Dashboard() {
         const authResponse = await fetch('http://localhost:8000/check_auth', {
           credentials: 'include',
         });
-        
         const authData = await authResponse.json();
         if (!authData.authenticated) {
           window.location.href = '/login';
           return;
         }
-        
+
         const playlistsResponse = await fetch('http://localhost:8000/api/playlists', {
           credentials: 'include',
         });
-        
         if (!playlistsResponse.ok) {
           if (playlistsResponse.status === 401) {
             window.location.href = '/login';
@@ -161,7 +188,6 @@ export default function Dashboard() {
           }
           throw new Error('Failed to load playlists');
         }
-        
         const data = await playlistsResponse.json();
         setPlaylists(data.playlists);
       } catch (err) {
@@ -170,7 +196,6 @@ export default function Dashboard() {
         setIsLoading(false);
       }
     }
-    
     fetchPlaylists();
   }, []);
 
@@ -186,94 +211,50 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
         <div className="text-rose-400 mb-4">{error}</div>
-        <Link 
+        <a
           href="/"
           className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
         >
           Return Home
-        </Link>
+        </a>
       </div>
     );
   }
 
+  const currentPlaylist = playlists.find((p) => p.id === selectedPlaylistForDownload);
+
   return (
     <main className="min-h-screen bg-slate-900">
-      <nav className="container mx-auto px-4 py-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-semibold text-slate-100 cursor-default">REED</span>
-          </div>
-          <form action="http://localhost:8000/logout" method="get">
-            <button
-              type="submit"
-              className="rounded-lg bg-rose-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-rose-700"
-            >
-              Logout
-            </button>
-          </form>
-        </div>
-      </nav>
-
+      <Header />
       <section className="container mx-auto px-4 py-12">
         <h1 className="text-3xl font-bold text-white mb-8">Your Playlists</h1>
-        
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {playlists.map((playlist) => (
-            <div 
-              key={playlist.id} 
-              className="bg-slate-800 rounded-xl overflow-hidden shadow-lg transition-all hover:shadow-emerald-400/10 hover:scale-[1.02]"
-            >
-              <div className="h-48 bg-slate-700 relative">
-                {playlist.images && playlist.images[0] ? (
-                  <img 
-                    src={playlist.images[0].url} 
-                    alt={`${playlist.name} cover`}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-slate-700">
-                    <svg className="w-16 h-16 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
-                    </svg>
-                  </div>
-                )}
-              </div>
-              <div className="p-5">
-                <h3 className="text-xl font-semibold text-white truncate">{playlist.name}</h3>
-                <p className="text-slate-400 mt-2 mb-4">
-                  {playlist.tracks.total} tracks • By {playlist.owner.display_name}
-                </p>
-                
-                <button 
-                  onClick={() => handleDownload(playlist.id)}
-                  disabled={downloadingPlaylists.has(playlist.id)}
-                  className={`inline-block rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors
-                    ${downloadingPlaylists.has(playlist.id) 
-                      ? 'bg-emerald-700 cursor-not-allowed' 
-                      : 'bg-emerald-600 hover:bg-emerald-700'}`}
-                >
-                  {downloadingPlaylists.has(playlist.id) ? 'Downloading...' : 'Download Playlist'}
-                </button>
-              </div>
-            </div>
+            <PlaylistCard 
+              key={playlist.id}
+              playlist={playlist}
+              isDownloading={downloadingPlaylists.has(playlist.id)}
+              onDownload={openDownloadModal}
+            />
           ))}
         </div>
-        
         {playlists.length === 0 && (
           <div className="text-center py-12">
             <p className="text-slate-400">You don't have any playlists yet.</p>
           </div>
         )}
       </section>
-      
-      <footer className="border-t border-slate-800">
-        <div className="container mx-auto px-4 py-8">
-          <p className="text-center text-sm text-slate-500">
-            This project is not affiliated with Spotify AB. All music rights belong to their respective owners.
-            <br />Purely educational demonstration of API integration concepts.
-          </p>
-        </div>
-      </footer>
+      <Footer />
+      <DownloadModal
+        isOpen={modalOpen}
+        playlist={currentPlaylist}
+        selectedDirHandle={selectedDirHandle}
+        saveFormat={saveFormat}
+        onClose={() => setModalOpen(false)}
+        onSelectFolder={handleSelectFolder}
+        onConfirm={startDownload}
+        onChangeFormat={setSaveFormat}
+      />
     </main>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Footer from "./components/Footer";
 
 export default function Home() {
   return (
@@ -32,8 +33,6 @@ export default function Home() {
       <section className="border-t border-slate-800 bg-slate-950/50">
         <div className="container mx-auto px-4 py-20">
           <div className="grid gap-8 md:grid-cols-2">
-            
-
             <div className="rounded-xl border border-slate-800 p-6 transition-all hover:border-emerald-400/30">
               <div className="mb-4 text-emerald-400">
                 <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,7 +40,9 @@ export default function Home() {
                 </svg>
               </div>
               <h3 className="mb-3 text-lg font-semibold text-slate-200">Secure Access</h3>
-              <p className="text-slate-400">OAuth 2.0 implementation following Spotify's security guidelines</p>
+              <p className="text-slate-400">
+                OAuth 2.0 implementation following Spotify's security guidelines
+              </p>
             </div>
 
             <div className="rounded-xl border border-slate-800 p-6 transition-all hover:border-emerald-400/30">
@@ -51,20 +52,15 @@ export default function Home() {
                 </svg>
               </div>
               <h3 className="mb-3 text-lg font-semibold text-slate-200">Metadata Export</h3>
-              <p className="text-slate-400">Export playlist metadata for educational analysis (JSON format)</p>
+              <p className="text-slate-400">
+                Export playlist metadata for educational analysis (JSON format)
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-slate-800">
-        <div className="container mx-auto px-4 py-8">
-          <p className="text-center text-sm text-slate-500">
-            This project is not affiliated with Spotify AB. All music rights belong to their respective owners.
-            <br />Purely educational demonstration of API integration concepts.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </main>
-  )
+  );
 }
