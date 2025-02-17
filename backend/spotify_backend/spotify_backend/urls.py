@@ -17,6 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from spotify_signup import views
+from django.views.decorators.csrf import csrf_exempt
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -25,6 +26,13 @@ urlpatterns = [
     path('callback', views.callback, name='callback'),
     path('check_auth', views.check_auth, name='check_auth'),
     path('logout', views.logout, name='logout'),
-    path('download/<str:playlist_id>/', views.download_playlist, name='download_playlist'),
+    # path('download/<str:playlist_id>/', views.download_playlist, name='download_playlist'),
     path('api/playlists', views.api_playlists, name='api_playlists'),
+    path('download/<str:playlist_id>', csrf_exempt(views.download_playlist), name='download_playlist'),
+
+    path('download/<str:playlist_id>', views.download_playlist, name='download_playlist'),
+    path('download-status/<str:playlist_id>', views.check_download_status, name='check_download_status'),
+    path('download-archive/<str:playlist_id>', views.get_download_archive, name='get_download_archive'),
+
+
 ]

@@ -3,6 +3,27 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
+interface FileSystemDirectoryHandle {
+  name: string;
+  getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle>;
+}
+
+interface FileSystemFileHandle {
+  name: string;
+  createWritable(options?: { keepExistingData?: boolean }): Promise<FileSystemWritableFileStream>;
+}
+
+interface FileSystemWritableFileStream {
+  write(data: Blob | string): Promise<void>;
+  close(): Promise<void>;
+}
+
+declare global {
+  interface Window {
+    showDirectoryPicker(): Promise<FileSystemDirectoryHandle>;
+  }
+}
+
 interface Image {
   url: string;
   height: number | null;
@@ -30,11 +51,95 @@ export default function Dashboard() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingPlaylists, setDownloadingPlaylists] = useState<Set<string>>(new Set());
+
+  const handleDownload = async (playlistId: string) => {
+    let selectedDirHandle: FileSystemDirectoryHandle;
+    try {
+      setDownloadingPlaylists((prev) => new Set(prev).add(playlistId));
+
+      // show dir picker
+      selectedDirHandle = await window.showDirectoryPicker();
+
+      //playlist name
+      const playlistName = playlists.find((p) => p.id === playlistId)?.name || playlistId;
+      const fileHandle = await selectedDirHandle.getFileHandle(`${playlistName}.zip`, { create: true });
+
+      const formData = new FormData();
+      formData.append('download_dir', selectedDirHandle.name);
+      formData.append('playlist_name', playlistName);
+
+      //download on the server
+      const response = await fetch(`http://localhost:8000/download/${playlistId}`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error('Download failed to start on the server');
+      }
+
+      // 2sec
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(
+            `http://localhost:8000/download-status/${playlistId}`,
+            { credentials: 'include' }
+          );
+          if (!statusResponse.ok) {
+            throw new Error('Failed to check download status');
+          }
+          const status = await statusResponse.json();
+          if (status.completed) {
+            clearInterval(pollInterval);
+            if (status.error) {
+              alert(`Download failed: ${status.error}`);
+            } else {
+              const archiveResponse = await fetch(
+                `http://localhost:8000/download-archive/${playlistId}`,
+                { credentials: 'include' }
+              );
+              if (!archiveResponse.ok) {
+                throw new Error('Failed to fetch the archive');
+              }
+              const blob = await archiveResponse.blob();
+
+              const writable = await fileHandle.createWritable();
+              await writable.write(blob);
+              await writable.close();
+
+              alert('Download complete and saved to your selected folder.');
+            }
+            setDownloadingPlaylists((prev) => {
+              const newSet = new Set(prev);
+              newSet.delete(playlistId);
+              return newSet;
+            });
+          }
+        } catch (error) {
+          console.error('Status check failed:', error);
+          clearInterval(pollInterval);
+          setDownloadingPlaylists((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(playlistId);
+            return newSet;
+          });
+        }
+      }, 2000);
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to start download. Please try again.');
+      setDownloadingPlaylists((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(playlistId);
+        return newSet;
+      });
+    }
+  };
 
   useEffect(() => {
     async function fetchPlaylists() {
       try {
-        // Check
         const authResponse = await fetch('http://localhost:8000/check_auth', {
           credentials: 'include',
         });
@@ -50,7 +155,6 @@ export default function Dashboard() {
         });
         
         if (!playlistsResponse.ok) {
-          // If unauthorized (token expired), redirect to login
           if (playlistsResponse.status === 401) {
             window.location.href = '/login';
             return;
@@ -140,14 +244,16 @@ export default function Dashboard() {
                   {playlist.tracks.total} tracks • By {playlist.owner.display_name}
                 </p>
                 
-                <a 
-                  href={`http://localhost:8000/download/${playlist.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+                <button 
+                  onClick={() => handleDownload(playlist.id)}
+                  disabled={downloadingPlaylists.has(playlist.id)}
+                  className={`inline-block rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors
+                    ${downloadingPlaylists.has(playlist.id) 
+                      ? 'bg-emerald-700 cursor-not-allowed' 
+                      : 'bg-emerald-600 hover:bg-emerald-700'}`}
                 >
-                  Download Playlist
-                </a>
+                  {downloadingPlaylists.has(playlist.id) ? 'Downloading...' : 'Download Playlist'}
+                </button>
               </div>
             </div>
           ))}

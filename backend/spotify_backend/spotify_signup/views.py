@@ -1,11 +1,13 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponse, JsonResponse
-import time, os, subprocess
+from django.http import HttpResponse, JsonResponse, FileResponse
+import time, os, subprocess, json, threading, shutil, tempfile
 from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
 load_dotenv()
+
+download_statuses = {}
 
 def get_spotify_oauth(request):
     return SpotifyOAuth(
@@ -35,13 +37,34 @@ def index(request):
             playlist_id = playlist.get('id')
             playlist_name = playlist.get('name')
             download_url = f"/download/{playlist_id}"
-            playlists_html += (
-                f"<li>{playlist_name} - "
-                f"<a href='{download_url}'><button type='button'>Download</button></a></li>"
-            )
-        
+            playlists_html += f'''
+                <li>{playlist_name} - 
+                    <form action="{download_url}" method="post" style="display: inline;">
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{{{ csrf_token }}}}">
+                        <input type="text" name="download_dir" id="download_dir_{playlist_id}" 
+                               placeholder="Download location" style="display: none;">
+                        <input type="hidden" name="playlist_name" value="{playlist_name}">
+                        <button type="button" onclick="selectDirectory('{playlist_id}')">Download</button>
+                    </form>
+                </li>
+            '''
+
         return HttpResponse(f'''
             <html>
+                <head>
+                    <script>
+                        async function selectDirectory(playlistId) {{
+                            try {{
+                                const dirHandle = await window.showDirectoryPicker();
+                                const input = document.getElementById('download_dir_' + playlistId);
+                                input.value = dirHandle.name;
+                                input.form.submit();
+                            }} catch (err) {{
+                                console.error(err);
+                            }}
+                        }}
+                    </script>
+                </head>
                 <body>
                     <p>Logged in as {request.session["spotify_token"]}</p>
                     <h2>Your Library Playlists:</h2>
@@ -55,47 +78,66 @@ def index(request):
     return redirect('/login')
 
 def download_playlist(request, playlist_id):
-    token_info = request.session.get("token_info")
-    if token_info and token_info.get("expires_at", 0) < time.time():
-        request.session.flush()
-        return redirect('/login')
-    
-    if "spotify_token" in request.session:
-        playlist_url = f"https://open.spotify.com/playlist/{playlist_id}?si=e9a4d49b9f3c48aa"
+    if request.method == "POST":
+        #temp dir
+        temp_dir = tempfile.mkdtemp()
+        download_statuses[playlist_id] = {
+            'completed': False,
+            'error': None,
+            'temp_dir': temp_dir 
+        }
+
+        def download_thread():
+            try:
+                playlist_url = f"https://open.spotify.com/playlist/{playlist_id}"
+                # run spotdl into the same dir
+                subprocess.run([
+                    "spotdl",
+                    playlist_url,
+                    "--output", temp_dir,
+                    "--format", "mp3"
+                ], capture_output=True, text=True, check=True)
+
+                download_statuses[playlist_id]['completed'] = True
+            except Exception as e:
+                download_statuses[playlist_id].update({
+                    'completed': True,
+                    'error': str(e)
+                })
+
+        thread = threading.Thread(target=download_thread)
+        thread.daemon = True
+        thread.start()
+
+        return JsonResponse({'status': 'Download started'})
+
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+def check_download_status(request, playlist_id):
+    if playlist_id in download_statuses:
+        return JsonResponse(download_statuses[playlist_id])
+    return JsonResponse({"error": "Download not found"}, status=404)
+
+def get_download_archive(request, playlist_id):
+    """
+    Once the download is complete, create a zip archive and serve it.
+    """
+    if playlist_id in download_statuses:
+        status = download_statuses[playlist_id]
+        if not status.get('completed'):
+            return JsonResponse({'error': 'Download still in progress'}, status=400)
+        if status.get('error'):
+            return JsonResponse({'error': status['error']}, status=500)
         
-        # Get custom download directory from POST data, or use default
-        if request.method == "POST" and request.POST.get("download_dir"):
-            base_download_dir = request.POST.get("download_dir")
-        else:
-            base_download_dir = os.path.join(os.getcwd(), "downloads")
+        temp_dir = status.get('temp_dir')
+        archive_path = os.path.join(tempfile.gettempdir(), f"{playlist_id}.zip")
+        shutil.make_archive(base_name=archive_path.replace('.zip',''), format='zip', root_dir=temp_dir)
         
-        download_dir = os.path.join(base_download_dir, playlist_id)
-        os.makedirs(download_dir, exist_ok=True)
+        # Clean temp
         
-        try:
-            result = subprocess.run(
-                ["spotdl", "download", playlist_url, "--output", download_dir, "--log-level", "INFO"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=True
-            )
-            output = result.stdout
-        except subprocess.CalledProcessError as e:
-            output = e.stderr
+        return FileResponse(open(archive_path, 'rb'), as_attachment=True, filename=f"{playlist_id}.zip")
         
-        return HttpResponse(f'''
-            <html>
-                <body>
-                    <p>Download process initiated for playlist: {playlist_url}</p>
-                    <p>Files will be downloaded to: {download_dir}</p>
-                    <pre>{output}</pre>
-                    <a href="/"><button type="button">Go Back</button></a>
-                </body>
-            </html>
-        ''')
-    return redirect('/login')
+    return JsonResponse({'error': 'Download not found'}, status=404)
 
 def login(request):
     sp_oauth = get_spotify_oauth(request)
