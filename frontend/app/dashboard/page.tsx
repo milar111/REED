@@ -201,19 +201,19 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-emerald-400 animate-pulse">Loading your playlists...</div>
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center p-4">
+        <div className="text-emerald-400 animate-pulse text-lg">Loading your playlists...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-        <div className="text-rose-400 mb-4">{error}</div>
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex flex-col items-center justify-center p-4">
+        <div className="text-rose-400 mb-4 text-center">{error}</div>
         <a
           href="/"
-          className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          className="px-4 py-2 bg-emerald-600/80 text-white rounded-lg hover:bg-emerald-700 transition-colors"
         >
           Return Home
         </a>
@@ -227,22 +227,20 @@ export default function Dashboard() {
     <main className="min-h-screen bg-slate-900">
       <Header />
       <section className="container mx-auto px-4 py-12">
-        <h1 className="text-3xl font-bold text-white mb-8">Your Playlists</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {playlists.map((playlist) => (
-            <PlaylistCard 
-              key={playlist.id}
-              playlist={playlist}
-              isDownloading={downloadingPlaylists.has(playlist.id)}
-              onDownload={openDownloadModal}
-            />
-          ))}
-        </div>
-        {playlists.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-slate-400">You don't have any playlists yet.</p>
+        {/* Add max-width constraint for extra small screens */}
+        <div className="max-w-[320px] sm:max-w-md md:max-w-none mx-auto">
+          <h1 className="text-3xl font-bold text-white mb-8">Your Playlists</h1>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {playlists.map((playlist) => (
+              <PlaylistCard 
+                key={playlist.id}
+                playlist={playlist}
+                isDownloading={downloadingPlaylists.has(playlist.id)}
+                onDownload={openDownloadModal}
+              />
+            ))}
           </div>
-        )}
+        </div>
       </section>
       <Footer />
       <DownloadModal
