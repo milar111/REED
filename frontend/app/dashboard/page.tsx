@@ -227,7 +227,6 @@ export default function Dashboard() {
     <main className="min-h-screen bg-slate-900">
       <Header />
       <section className="container mx-auto px-4 py-12">
-        {/* Add max-width constraint for extra small screens */}
         <div className="max-w-[320px] sm:max-w-md md:max-w-none mx-auto">
           <h1 className="text-3xl font-bold text-white mb-8">Your Playlists</h1>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

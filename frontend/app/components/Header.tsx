@@ -6,7 +6,12 @@ export default function Header() {
       <div className="max-w-[320px] sm:max-w-md md:max-w-none mx-auto">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xl font-semibold text-slate-100 cursor-default">REED</span>
+            <Link 
+              href="/"
+              className="text-xl font-semibold text-slate-100 hover:text-emerald-400 transition-colors"
+            >
+              REED
+            </Link>
           </div>
           <form action="http://localhost:8000/logout" method="get">
             <button
