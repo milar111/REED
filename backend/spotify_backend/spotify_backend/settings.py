@@ -23,13 +23,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-l4=&s8*d)d$65r=5hfaqxd9+oagiy-p@ft)p%wbnv-4+g@77ww'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = []
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    "https://milar111.github.io/REED/",
+    "https://milar111.github.io",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
