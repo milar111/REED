@@ -27,7 +27,7 @@ export default function Login() {
           <div className="space-y-4">
             <a 
               // href="http://localhost:8000/login"
-              href="https://reed-ocsk.onrender.com"
+              href="https://reed-ocsk.onrender.com/login"
               className="w-full flex items-center justify-center gap-3 bg-[#1DB954] text-white py-3 rounded-lg font-medium hover:bg-[#1ed760] transition-colors"
             >
               <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
