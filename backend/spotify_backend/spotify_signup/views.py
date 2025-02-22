@@ -148,8 +148,6 @@ def callback(request):
     code = request.GET.get("code")
     sp_oauth = get_spotify_oauth(request)
     token_info = sp_oauth.get_access_token(code)
-    token_info["expires_in"] = 3600  
-    token_info["expires_at"] = int(time.time()) + 3600
     request.session["spotify_token"] = token_info["access_token"]
     request.session["token_info"] = token_info
     return redirect(f'{FRONTEND_URL}/dashboard')
