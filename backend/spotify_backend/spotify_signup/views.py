@@ -15,7 +15,7 @@ def get_spotify_oauth(request):
     return SpotifyOAuth(
         client_id=os.getenv("CLIENT_ID"),
         client_secret=os.getenv("CLIENT_SECRET"),
-        redirect_uri="http://127.0.0.1:8000/callback",
+        redirect_uri="https://reed-ocsk.onrender.com/callback",
         scope="user-library-read playlist-read-private playlist-read-collaborative"
     )
 
