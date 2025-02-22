@@ -15,7 +15,7 @@ def get_spotify_oauth(request):
     return SpotifyOAuth(
         client_id=os.getenv("CLIENT_ID"),
         client_secret=os.getenv("CLIENT_SECRET"),
-        redirect_uri="https://reed-ocsk.onrender.com/",
+        redirect_uri="https://reed-ocsk.onrender.com/callback",
         scope="user-library-read playlist-read-private playlist-read-collaborative"
     )
 
@@ -145,26 +145,14 @@ def login(request):
     return redirect(auth_url)
 
 def callback(request):
-    try:
-        code = request.GET.get("code")
-        if not code:
-            return HttpResponse("No code provided", status=400)
-        
-        sp_oauth = get_spotify_oauth(request)
-        token_info = sp_oauth.get_access_token(code)
-        if not token_info or "access_token" not in token_info:
-            return HttpResponse("Failed to obtain token", status=400)
-        
-        token_info["expires_in"] = 3600  
-        token_info["expires_at"] = int(time.time()) + 3600
-        
-        request.session["spotify_token"] = token_info["access_token"]
-        request.session["token_info"] = token_info
-        
-        return redirect(f'{FRONTEND_URL}/dashboard')
-    except Exception as e:
-        return HttpResponse(f"Error in callback: {str(e)}", status=500)
-
+    code = request.GET.get("code")
+    sp_oauth = get_spotify_oauth(request)
+    token_info = sp_oauth.get_access_token(code)
+    token_info["expires_in"] = 3600  
+    token_info["expires_at"] = int(time.time()) + 3600
+    request.session["spotify_token"] = token_info["access_token"]
+    request.session["token_info"] = token_info
+    return redirect(f'{FRONTEND_URL}/dashboard')
 
 def logout(request):
     request.session.flush()
