@@ -11,7 +11,7 @@ export async function middleware(request: NextRequest) {
   
   try {
     // Check authentication
-    const response = await fetch('http://localhost:8000/check_auth', {
+    const response = await fetch('https://reed-ocsk.onrender.com/check_auth', {
       headers: {
         Cookie: request.headers.get('Cookie') || '',
       },
