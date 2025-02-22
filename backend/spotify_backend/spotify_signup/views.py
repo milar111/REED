@@ -9,11 +9,13 @@ load_dotenv()
 
 download_statuses = {}
 
+FRONTEND_URL = "https://milar111.github.io/REED"
+
 def get_spotify_oauth(request):
     return SpotifyOAuth(
         client_id=os.getenv("CLIENT_ID"),
         client_secret=os.getenv("CLIENT_SECRET"),
-        redirect_uri="http://localhost:8000/callback",
+        redirect_uri="https://reed-ocsk.onrender.com/callback",
         scope="user-library-read playlist-read-private playlist-read-collaborative"
     )
 
@@ -79,7 +81,7 @@ def index(request):
 
 def download_playlist(request, playlist_id):
     if request.method == "POST":
-        #temp dir
+        # Create temporary directory
         temp_dir = tempfile.mkdtemp()
         download_statuses[playlist_id] = {
             'completed': False,
@@ -90,7 +92,7 @@ def download_playlist(request, playlist_id):
         def download_thread():
             try:
                 playlist_url = f"https://open.spotify.com/playlist/{playlist_id}"
-                # run spotdl into the same dir
+                # Run spotdl to download the playlist into temp_dir
                 subprocess.run([
                     "spotdl",
                     playlist_url,
@@ -133,8 +135,6 @@ def get_download_archive(request, playlist_id):
         archive_path = os.path.join(tempfile.gettempdir(), f"{playlist_id}.zip")
         shutil.make_archive(base_name=archive_path.replace('.zip',''), format='zip', root_dir=temp_dir)
         
-        # Clean temp
-        
         return FileResponse(open(archive_path, 'rb'), as_attachment=True, filename=f"{playlist_id}.zip")
         
     return JsonResponse({'error': 'Download not found'}, status=404)
@@ -152,11 +152,11 @@ def callback(request):
     token_info["expires_at"] = int(time.time()) + 3600
     request.session["spotify_token"] = token_info["access_token"]
     request.session["token_info"] = token_info
-    return redirect('http://localhost:3000/dashboard')
+    return redirect(f'{FRONTEND_URL}/dashboard')
 
 def logout(request):
     request.session.flush()
-    return redirect('http://localhost:3000')
+    return redirect(FRONTEND_URL)
 
 def check_auth(request):
     if "spotify_token" in request.session:
@@ -188,5 +188,3 @@ def api_playlists(request):
         return JsonResponse({'playlists': playlists})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
-
