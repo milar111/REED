@@ -42,7 +42,8 @@ jobs:
       - name: Upload artifact for deployment
         uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend/out  # Correct path for the built Next.js static files
+          path: frontend/out 
+
 
   deploy:
     environment:
