@@ -13,9 +13,9 @@ FRONTEND_URL = "https://milar111.github.io/REED"
 
 def get_spotify_oauth(request):
     return SpotifyOAuth(
-        client_id=os.getenv("CLIENT_ID"),
-        client_secret=os.getenv("CLIENT_SECRET"),
-        redirect_uri=os.getenv("REDIRECT_URI"),
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        redirect_uri=REDIRECT_URI,
         scope="user-library-read playlist-read-private playlist-read-collaborative"
     )
 
