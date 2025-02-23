@@ -11,7 +11,7 @@ export async function middleware(request: NextRequest) {
   
   try {
     // Check authentication
-    const response = await fetch('https://reed-ocsk.onrender.com/check_auth', {
+    const response = await fetch('http://reed-gilt.vercel.app/check_auth', {
       headers: {
         Cookie: request.headers.get('Cookie') || '',
       },
