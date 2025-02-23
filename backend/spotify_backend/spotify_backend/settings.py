@@ -28,7 +28,7 @@ SECRET_KEY = os.getenv("SECURITY_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'reed-ocsk.onrender.com']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'reed-ocsk.onrender.com', '.vercel.app']
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",

@@ -146,15 +146,8 @@ def login(request):
 
 def callback(request):
     code = request.GET.get("code")
-    if not code:
-        return JsonResponse({'error': 'No code was provided.'}, status=400)
-        
     sp_oauth = get_spotify_oauth(request)
-    try:
-        token_info = sp_oauth.get_access_token(code)
-    except Exception as e:
-        return JsonResponse({'error': 'Failed to get access token', 'details': str(e)}, status=500)
-    
+    token_info = sp_oauth.get_access_token(code)
     request.session["spotify_token"] = token_info["access_token"]
     request.session["token_info"] = token_info
     return redirect(f'{FRONTEND_URL}/dashboard')
