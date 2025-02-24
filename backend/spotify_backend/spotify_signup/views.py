@@ -1,21 +1,26 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse, FileResponse
-import time, os, subprocess, json, threading, shutil, tempfile
+import time, os, subprocess, threading, shutil, tempfile, json
 from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+import traceback
 
 load_dotenv()
 
-download_statuses = {}
+SECRET_KEY = os.getenv("SECRET_KEY")  
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/callback")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://milar111.github.io/REED")
 
-FRONTEND_URL = "https://milar111.github.io/REED"
+download_statuses = {}
 
 def get_spotify_oauth(request):
     return SpotifyOAuth(
-        client_id=os.getenv("CLIENT_ID"),
-        client_secret=os.getenv("CLIENT_SECRET"),
-        redirect_uri=os.getenv("REDIRECT_URI"),
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        redirect_uri=REDIRECT_URI,
         scope="user-library-read playlist-read-private playlist-read-collaborative"
     )
 
@@ -81,7 +86,7 @@ def index(request):
 
 def download_playlist(request, playlist_id):
     if request.method == "POST":
-        # Create temporary directory
+        # Create temporary directory for downloads
         temp_dir = tempfile.mkdtemp()
         download_statuses[playlist_id] = {
             'completed': False,
@@ -99,7 +104,6 @@ def download_playlist(request, playlist_id):
                     "--output", temp_dir,
                     "--format", "mp3"
                 ], capture_output=True, text=True, check=True)
-
                 download_statuses[playlist_id]['completed'] = True
             except Exception as e:
                 download_statuses[playlist_id].update({
@@ -112,7 +116,6 @@ def download_playlist(request, playlist_id):
         thread.start()
 
         return JsonResponse({'status': 'Download started'})
-
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
 def check_download_status(request, playlist_id):
@@ -136,7 +139,6 @@ def get_download_archive(request, playlist_id):
         shutil.make_archive(base_name=archive_path.replace('.zip',''), format='zip', root_dir=temp_dir)
         
         return FileResponse(open(archive_path, 'rb'), as_attachment=True, filename=f"{playlist_id}.zip")
-        
     return JsonResponse({'error': 'Download not found'}, status=404)
 
 def login(request):
@@ -145,12 +147,26 @@ def login(request):
     return redirect(auth_url)
 
 def callback(request):
-    code = request.GET.get("code")
-    sp_oauth = get_spotify_oauth(request)
-    token_info = sp_oauth.get_access_token(code)
-    request.session["spotify_token"] = token_info["access_token"]
-    request.session["token_info"] = token_info
-    return redirect(f'{FRONTEND_URL}/dashboard')
+    try:
+        code = request.GET.get("code")
+        if not code:
+            return HttpResponse("No code provided", status=400)
+        
+        sp_oauth = get_spotify_oauth(request)
+        token_info = sp_oauth.get_access_token(code)
+        if not token_info or "access_token" not in token_info:
+            return HttpResponse("Failed to obtain token", status=400)
+        
+        token_info["expires_in"] = 3600  
+        token_info["expires_at"] = int(time.time()) + 3600
+        
+        request.session["spotify_token"] = token_info["access_token"]
+        request.session["token_info"] = token_info
+        
+        return redirect(f'{FRONTEND_URL}/dashboard')
+    except Exception as e:
+        error_details = traceback.format_exc()
+        return HttpResponse(f"Error in callback: {str(e)}\n{error_details}", status=500)
 
 def logout(request):
     request.session.flush()
