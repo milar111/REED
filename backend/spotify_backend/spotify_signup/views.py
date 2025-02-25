@@ -1,26 +1,21 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse, FileResponse
-import time, os, subprocess, threading, shutil, tempfile, json
+import time, os, subprocess, json, threading, shutil, tempfile
 from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import traceback
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("SECRET_KEY")  
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/callback")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://milar111.github.io/REED")
-
 download_statuses = {}
+
+FRONTEND_URL = "https://milar111.github.io/REED"
 
 def get_spotify_oauth(request):
     return SpotifyOAuth(
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI,
+        client_id=os.getenv("CLIENT_ID"),
+        client_secret=os.getenv("CLIENT_SECRET"),
+        redirect_uri=os.getenv("REDIRECT_URI"),
         scope="user-library-read playlist-read-private playlist-read-collaborative"
     )
 
@@ -86,7 +81,7 @@ def index(request):
 
 def download_playlist(request, playlist_id):
     if request.method == "POST":
-        # Create temporary directory for downloads
+        # Create temporary directory
         temp_dir = tempfile.mkdtemp()
         download_statuses[playlist_id] = {
             'completed': False,
@@ -104,6 +99,7 @@ def download_playlist(request, playlist_id):
                     "--output", temp_dir,
                     "--format", "mp3"
                 ], capture_output=True, text=True, check=True)
+
                 download_statuses[playlist_id]['completed'] = True
             except Exception as e:
                 download_statuses[playlist_id].update({
@@ -116,6 +112,7 @@ def download_playlist(request, playlist_id):
         thread.start()
 
         return JsonResponse({'status': 'Download started'})
+
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
 def check_download_status(request, playlist_id):
@@ -139,6 +136,7 @@ def get_download_archive(request, playlist_id):
         shutil.make_archive(base_name=archive_path.replace('.zip',''), format='zip', root_dir=temp_dir)
         
         return FileResponse(open(archive_path, 'rb'), as_attachment=True, filename=f"{playlist_id}.zip")
+        
     return JsonResponse({'error': 'Download not found'}, status=404)
 
 def login(request):
@@ -146,41 +144,25 @@ def login(request):
     auth_url = sp_oauth.get_authorize_url()
     return redirect(auth_url)
 
-from django.shortcuts import redirect
-from django.http import HttpResponse
-import os, time, traceback
-from spotipy.oauth2 import SpotifyOAuth
-
 def callback(request):
+    sp_oauth = get_spotify_oauth(request)
+    error = request.GET.get('error')
+    if error:
+        return HttpResponse(f"Error during Spotify authentication: {error}", status=400)
+    
+    code = request.GET.get('code')
+    if not code:
+        return HttpResponse("No code provided in callback.", status=400)
+    
     try:
-        code = request.GET.get("code")
-        if not code:
-            return HttpResponse("Error: No authorization code provided.", status=400)
-
-        sp_oauth = SpotifyOAuth(
-            client_id=os.getenv("CLIENT_ID"),
-            client_secret=os.getenv("CLIENT_SECRET"),
-            redirect_uri=os.getenv("REDIRECT_URI"),
-            scope="user-library-read playlist-read-private playlist-read-collaborative"
-        )
-
         token_info = sp_oauth.get_access_token(code)
-        if not token_info or "access_token" not in token_info:
-            return HttpResponse("Error: Failed to obtain access token.", status=400)
-
-        token_info["expires_at"] = int(time.time()) + token_info.get("expires_in", 3600)
-
-        request.session["spotify_token"] = token_info["access_token"]
-        request.session["token_info"] = token_info
-
-        FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
-
-        return redirect(f"{FRONTEND_URL}/dashboard")
-
     except Exception as e:
-        error_details = traceback.format_exc()
-        return HttpResponse(f"Error in callback: {str(e)}\n{error_details}", status=500)
-
+        return HttpResponse(f"Failed to get access token: {str(e)}", status=500)
+    
+    request.session["token_info"] = token_info
+    request.session["spotify_token"] = token_info.get("access_token")
+    
+    return redirect(f"{FRONTEND_URL}/dashboard")
 
 def logout(request):
     request.session.flush()
