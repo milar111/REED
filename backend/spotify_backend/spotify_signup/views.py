@@ -15,9 +15,9 @@ def get_spotify_oauth(request):
     if not request.session.session_key:
         request.session.create()
     sp_oauth = SpotifyOAuth(
-        client_id=os.environ.get("SPOTIPY_CLIENT_ID"),
-        client_secret=os.environ.get("SPOTIPY_CLIENT_SECRET"),
-        redirect_uri=os.environ.get("SPOTIPY_REDIRECT_URI"),
+        client_id=os.environ.get("CLIENT_ID"),
+        client_secret=os.environ.get("CLIENT_SECRET"),
+        redirect_uri=os.environ.get("REDIRECT_URI"),
         scope="user-library-read playlist-read-private playlist-read-collaborative"
     )
     return sp_oauth
