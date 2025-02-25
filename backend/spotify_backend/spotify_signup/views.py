@@ -146,23 +146,20 @@ def login(request):
 
 def callback(request):
     sp_oauth = get_spotify_oauth(request)
-    error = request.GET.get('error')
+    error = request.GET.get("error")
     if error:
-        return HttpResponse(f"Error during Spotify authentication: {error}", status=400)
+        return HttpResponse(f"Error during authentication: {error}")
     
-    code = request.GET.get('code')
-    if not code:
-        return HttpResponse("No code provided in callback.", status=400)
-    
-    try:
-        token_info = sp_oauth.get_access_token(code)
-    except Exception as e:
-        return HttpResponse(f"Failed to get access token: {str(e)}", status=500)
-    
-    request.session["token_info"] = token_info
-    request.session["spotify_token"] = token_info.get("access_token")
-    
-    return redirect(f"{FRONTEND_URL}/dashboard")
+    code = request.GET.get("code")
+    if code:
+        try:
+            token_info = sp_oauth.get_access_token(code)
+        except Exception as e:
+            return HttpResponse(f"Error obtaining token: {e}")
+        request.session["token_info"] = token_info
+        request.session["spotify_token"] = token_info["access_token"]
+        return redirect('/')
+    return HttpResponse("No code provided in callback.")
 
 def logout(request):
     request.session.flush()
