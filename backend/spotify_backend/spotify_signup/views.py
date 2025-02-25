@@ -12,12 +12,15 @@ download_statuses = {}
 FRONTEND_URL = "https://milar111.github.io/REED"
 
 def get_spotify_oauth(request):
-    return SpotifyOAuth(
-        client_id=os.getenv("CLIENT_ID"),
-        client_secret=os.getenv("CLIENT_SECRET"),
-        redirect_uri=os.getenv("REDIRECT_URI"),
+    if not request.session.session_key:
+        request.session.create()
+    sp_oauth = SpotifyOAuth(
+        client_id=os.environ.get("SPOTIPY_CLIENT_ID"),
+        client_secret=os.environ.get("SPOTIPY_CLIENT_SECRET"),
+        redirect_uri=os.environ.get("SPOTIPY_REDIRECT_URI"),
         scope="user-library-read playlist-read-private playlist-read-collaborative"
     )
+    return sp_oauth
 
 def index(request):
     token_info = request.session.get("token_info")
@@ -146,20 +149,22 @@ def login(request):
 
 def callback(request):
     sp_oauth = get_spotify_oauth(request)
-    error = request.GET.get("error")
-    if error:
-        return HttpResponse(f"Error during authentication: {error}")
-    
     code = request.GET.get("code")
-    if code:
-        try:
-            token_info = sp_oauth.get_access_token(code)
-        except Exception as e:
-            return HttpResponse(f"Error obtaining token: {e}")
-        request.session["token_info"] = token_info
-        request.session["spotify_token"] = token_info["access_token"]
-        return redirect('/')
-    return HttpResponse("No code provided in callback.")
+    if not code:
+        return HttpResponse("No code provided", status=400)
+    
+    try:
+        token_info = sp_oauth.get_access_token(code)
+    except Exception as e:
+        return HttpResponse(f"Error obtaining token: {e}", status=400)
+    
+    if not token_info:
+        return HttpResponse("Failed to obtain token.", status=400)
+    
+    request.session["token_info"] = token_info
+    request.session["spotify_token"] = token_info["access_token"]
+    
+    return redirect(FRONTEND_URL + "/dashboard")
 
 def logout(request):
     request.session.flush()
