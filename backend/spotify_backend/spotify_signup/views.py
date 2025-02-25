@@ -146,27 +146,41 @@ def login(request):
     auth_url = sp_oauth.get_authorize_url()
     return redirect(auth_url)
 
+from django.shortcuts import redirect
+from django.http import HttpResponse
+import os, time, traceback
+from spotipy.oauth2 import SpotifyOAuth
+
 def callback(request):
     try:
         code = request.GET.get("code")
         if not code:
-            return HttpResponse("No code provided", status=400)
-        
-        sp_oauth = get_spotify_oauth(request)
+            return HttpResponse("Error: No authorization code provided.", status=400)
+
+        sp_oauth = SpotifyOAuth(
+            client_id=os.getenv("CLIENT_ID"),
+            client_secret=os.getenv("CLIENT_SECRET"),
+            redirect_uri=os.getenv("REDIRECT_URI"),
+            scope="user-library-read playlist-read-private playlist-read-collaborative"
+        )
+
         token_info = sp_oauth.get_access_token(code)
         if not token_info or "access_token" not in token_info:
-            return HttpResponse("Failed to obtain token", status=400)
-        
-        token_info["expires_in"] = 3600  
-        token_info["expires_at"] = int(time.time()) + 3600
-        
+            return HttpResponse("Error: Failed to obtain access token.", status=400)
+
+        token_info["expires_at"] = int(time.time()) + token_info.get("expires_in", 3600)
+
         request.session["spotify_token"] = token_info["access_token"]
         request.session["token_info"] = token_info
-        
-        return redirect(f'{FRONTEND_URL}/dashboard')
+
+        FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+        return redirect(f"{FRONTEND_URL}/dashboard")
+
     except Exception as e:
         error_details = traceback.format_exc()
         return HttpResponse(f"Error in callback: {str(e)}\n{error_details}", status=500)
+
 
 def logout(request):
     request.session.flush()
