@@ -10,8 +10,6 @@ import { Playlist } from '../types';
 
 export {};
 
-const BACKEND_URL = "https://reed-ocsk.onrender.com";
-
 declare global {
   interface Window {
     showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
@@ -34,7 +32,7 @@ export default function Dashboard() {
     setModalOpen(true);
   };
 
-  // Select directory
+  //select dir
   const handleSelectFolder = async () => {
     try {
       const dirHandle = await window.showDirectoryPicker();
@@ -44,7 +42,7 @@ export default function Dashboard() {
     }
   };
 
-  // Download process when the user confirms
+  // download process when the user confirms
   const startDownload = async () => {
     if (!selectedPlaylistForDownload || !selectedDirHandle) {
       alert('Please select a folder to save your music.');
@@ -73,8 +71,9 @@ export default function Dashboard() {
       formData.append('playlist_name', playlistName);
       formData.append('format', saveFormat);
 
-      // Download on the server
-      const response = await fetch(`${BACKEND_URL}/download/${playlistId}`, {
+      // download on the server
+      // const response = await fetch(`http://localhost:8000/download/${playlistId}`, {
+      const response = await fetch(`https://reed-gilt.vercel.app/download/${playlistId}`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
@@ -83,12 +82,14 @@ export default function Dashboard() {
         throw new Error('Download failed to start on the server');
       }
 
-      // Poll for status every 2 seconds
+      //2 seconds
       const pollInterval = setInterval(async () => {
         try {
-          const statusResponse = await fetch(`${BACKEND_URL}/download-status/${playlistId}`, {
-            credentials: 'include',
-          });
+          const statusResponse = await fetch(
+            // `http://localhost:8000/download-status/${playlistId}`,
+            `https://reed-gilt.vercel.app/download-status/${playlistId}`,
+            { credentials: 'include' }
+          );
           if (!statusResponse.ok) {
             throw new Error('Failed to check download status');
           }
@@ -98,9 +99,11 @@ export default function Dashboard() {
             if (status.error) {
               alert(`Download failed: ${status.error}`);
             } else {
-              const archiveResponse = await fetch(`${BACKEND_URL}/download-archive/${playlistId}`, {
-                credentials: 'include',
-              });
+              const archiveResponse = await fetch(
+                // `http://localhost:8000/download-archive/${playlistId}`,
+                `https://reed-gilt.vercel.app/download-archive/${playlistId}`,
+                { credentials: 'include' }
+              );
               if (!archiveResponse.ok) {
                 throw new Error('Failed to fetch the archive');
               }
@@ -111,7 +114,7 @@ export default function Dashboard() {
                 await writable.write(blob);
                 await writable.close();
               } else {
-                // Normal folder format
+                // normal folder format
                 const jszip = new JSZip();
                 const zipContent = await jszip.loadAsync(blob);
                 for (const [relativePath, zipEntryRaw] of Object.entries(zipContent.files)) {
@@ -169,7 +172,8 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchPlaylists() {
       try {
-        const authResponse = await fetch(`${BACKEND_URL}/check_auth`, {
+        // const authResponse = await fetch('http://localhost:8000/check_auth', {
+        const authResponse = await fetch('https://reed-gilt.vercel.app/check_auth', {
           credentials: 'include',
         });
         const authData = await authResponse.json();
@@ -178,7 +182,8 @@ export default function Dashboard() {
           return;
         }
 
-        const playlistsResponse = await fetch(`${BACKEND_URL}/api/playlists`, {
+        // const playlistsResponse = await fetch('http://localhost:8000/api/playlists', {
+        const playlistsResponse = await fetch('https://reed-gilt.vercel.app/api/playlists', {
           credentials: 'include',
         });
         if (!playlistsResponse.ok) {
