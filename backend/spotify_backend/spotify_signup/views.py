@@ -14,10 +14,10 @@ from spotipy.oauth2 import SpotifyOAuth
 # Load environment variables from .env file
 load_dotenv()
 
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI") #, "http://localhost:8000/callback"
-FRONTEND_URL = os.getenv("FRONTEND_URL") # , "http://localhost:3000"
+CLIENT_ID = os.getenv("dbc6cc3870fd43248e35d0a61b192c2a")
+CLIENT_SECRET = os.getenv("c774a7512f3f47f28d50740b15660161")
+REDIRECT_URI = os.getenv("http://reed-gilt.vercel.app/callback") #, "http://localhost:8000/callback"
+FRONTEND_URL = os.getenv("https://milar111.github.io/REED/") # , "http://localhost:3000"
 
 # Global dictionary to track download statuses
 download_statuses = {}
