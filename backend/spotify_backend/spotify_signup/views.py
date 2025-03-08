@@ -1,7 +1,7 @@
 import base64
 import requests
-from django.shortcuts import redirect, HttpResponse
-from django.http import HttpResponseBadRequest
+from django.shortcuts import redirect
+from django.http import HttpResponse, HttpResponseBadRequest
 
 # Replace these with your actual Spotify credentials
 CLIENT_ID = '51709ad6693e45bea08876a55941dd14'
