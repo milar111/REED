@@ -28,7 +28,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', "milar111.github.io", 'reed-gilt.vercel.app']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', "milar111.github.io", 'reed-gilt.vercel.app', 'reed-1fcxn2bdn-milar111s-projects.vercel.app', 'localhost', '127.0.0.1']
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
