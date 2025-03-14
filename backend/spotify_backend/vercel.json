@@ -1,13 +1,12 @@
 {
     "builds": [{
-        "src": "spotify_backend/wsgi.py",
-        "use": "@vercel/python",
-        "config": { "maxLambdaSize": "15mb", "runtime": "python3.9" }
+        "src": "server.py",
+        "use": "@vercel/python"
     }],
     "routes": [
         {
             "src": "/(.*)",
-            "dest": "spotify_backend/wsgi.py"
+            "dest": "server.py"
         }
     ]
 }
