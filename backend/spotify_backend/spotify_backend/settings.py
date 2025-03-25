@@ -83,6 +83,15 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'spotify_backend.wsgi.application'
 
+# Database
+# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.dummy',
+        'NAME': ':memory:',
+    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
