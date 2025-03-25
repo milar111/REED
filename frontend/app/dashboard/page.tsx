@@ -172,20 +172,25 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchPlaylists() {
       try {
-        // const authResponse = await fetch('http://localhost:8000/check_auth', {
         const authResponse = await fetch('https://reed-gilt.vercel.app/check_auth', {
           credentials: 'include',
         });
+        
+        if (!authResponse.ok) {
+          window.location.href = '/login';
+          return;
+        }
+        
         const authData = await authResponse.json();
         if (!authData.authenticated) {
           window.location.href = '/login';
           return;
         }
 
-        // const playlistsResponse = await fetch('http://localhost:8000/api/playlists', {
         const playlistsResponse = await fetch('https://reed-gilt.vercel.app/api/playlists', {
           credentials: 'include',
         });
+        
         if (!playlistsResponse.ok) {
           if (playlistsResponse.status === 401) {
             window.location.href = '/login';
@@ -193,9 +198,11 @@ export default function Dashboard() {
           }
           throw new Error('Failed to load playlists');
         }
+        
         const data = await playlistsResponse.json();
         setPlaylists(data.playlists);
       } catch (err) {
+        console.error('Error fetching playlists:', err);
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
       } finally {
         setIsLoading(false);
