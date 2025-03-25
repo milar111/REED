@@ -79,6 +79,18 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'spotify_backend.wsgi.application'
 
+# Cache settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
+# Session settings
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
