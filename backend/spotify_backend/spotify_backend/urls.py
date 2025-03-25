@@ -14,13 +14,11 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
 from django.urls import path
 from spotify_signup import views
 from django.views.decorators.csrf import csrf_exempt
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
     path('', views.index, name='index'),
     path('login', views.login, name='login'),
     path('callback', views.callback, name='callback'),
@@ -33,6 +31,4 @@ urlpatterns = [
     path('download/<str:playlist_id>', views.download_playlist, name='download_playlist'),
     path('download-status/<str:playlist_id>', views.check_download_status, name='check_download_status'),
     path('download-archive/<str:playlist_id>', views.get_download_archive, name='get_download_archive'),
-
-
 ]
