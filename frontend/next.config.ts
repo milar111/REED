@@ -8,8 +8,6 @@ const nextConfig = {
     unoptimized: true, 
   },
   basePath: isProd ? '/REED' : '',
-  // Add trailing slashes to ensure proper asset loading
-  trailingSlash: true,
 };
 
 module.exports = nextConfig;

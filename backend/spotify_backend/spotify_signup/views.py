@@ -28,7 +28,7 @@ def get_spotify_oauth(request):
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope="user-library-read playlist-read-private playlist-read-collaborative",
-        cache_path=".spotipyoauthcache",
+        cache_handler=None,  # Disable file cache
         show_dialog=True
     )
 
