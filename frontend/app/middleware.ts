@@ -4,11 +4,8 @@ import type { NextRequest } from 'next/server';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Remove /REED prefix from pathname for checking
-  const cleanPathname = pathname.replace(/^\/REED/, '');
-  
   // Only run this for login and dashboard pages
-  if (cleanPathname !== '/login' && cleanPathname !== '/dashboard') {
+  if (pathname !== '/login' && pathname !== '/dashboard') {
     return NextResponse.next();
   }
   
@@ -25,23 +22,23 @@ export async function middleware(request: NextRequest) {
     const isAuthenticated = data.authenticated;
     
     // Redirect to dashboard
-    if (cleanPathname === '/login' && isAuthenticated) {
-      return NextResponse.redirect(new URL('/REED/dashboard', request.url));
+    if (pathname === '/login' && isAuthenticated) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
     
     // Redirect to login
-    if (cleanPathname === '/dashboard' && !isAuthenticated) {
-      return NextResponse.redirect(new URL('/REED/login', request.url));
+    if (pathname === '/dashboard' && !isAuthenticated) {
+      return NextResponse.redirect(new URL('/login', request.url));
     }
   } catch (error) {
     console.error('Error checking auth status:', error);
     // On error, redirect to login
-    return NextResponse.redirect(new URL('/REED/login', request.url));
+    return NextResponse.redirect(new URL('/login', request.url));
   }
   
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/REED/login', '/REED/dashboard'],
+  matcher: ['/login', '/dashboard'],
 };
