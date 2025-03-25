@@ -45,7 +45,7 @@ export default function Home() {
 
             <div className="pt-4">
               <Link
-                href="/login"
+                href="/REED/login"
                 className="inline-flex items-center gap-2 rounded-lg bg-emerald-600/90 px-8 py-3.5 text-sm font-semibold text-white transition-all hover:bg-emerald-600 hover:shadow-lg hover:shadow-emerald-600/20">
                 Start Analysis
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
