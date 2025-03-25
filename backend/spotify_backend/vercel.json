@@ -7,7 +7,13 @@
     "routes": [
         {
             "src": "/(.*)",
-            "dest": "spotify_backend/wsgi.py"
+            "dest": "spotify_backend/wsgi.py",
+            "headers": {
+                "Access-Control-Allow-Origin": "https://milar111.github.io",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "X-CSRFToken, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
+            }
         }
     ]
 }

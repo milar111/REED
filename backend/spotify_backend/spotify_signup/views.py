@@ -1,6 +1,7 @@
 from django.shortcuts import redirect, render
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.middleware.csrf import get_token
 import os
 import time
 import subprocess
@@ -16,8 +17,8 @@ load_dotenv()
 
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI") #, "http://localhost:8000/callback"
-FRONTEND_URL = os.getenv("FRONTEND_URL") # , "http://localhost:3000"
+REDIRECT_URI = os.getenv("REDIRECT_URI")
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 # Global dictionary to track download statuses
 download_statuses = {}
@@ -178,6 +179,28 @@ def login(request):
     auth_url = sp_oauth.get_authorize_url()
     return redirect(auth_url)
 
+@csrf_exempt
+def check_auth(request):
+    if request.method == 'OPTIONS':
+        response = JsonResponse({'authenticated': False})
+        response['Access-Control-Allow-Origin'] = 'https://milar111.github.io'
+        response['Access-Control-Allow-Credentials'] = 'true'
+        return response
+
+    if "spotify_token" in request.session:
+        token_info = request.session.get("token_info")
+        if token_info and token_info.get("expires_at", 0) < time.time():
+            request.session.flush()
+            response = JsonResponse({'authenticated': False})
+        else:
+            response = JsonResponse({'authenticated': True, 'token': request.session["spotify_token"]})
+    else:
+        response = JsonResponse({'authenticated': False})
+    
+    response['Access-Control-Allow-Origin'] = 'https://milar111.github.io'
+    response['Access-Control-Allow-Credentials'] = 'true'
+    return response
+
 def callback(request):
     code = request.GET.get("code")
     sp_oauth = get_spotify_oauth(request)
@@ -190,20 +213,22 @@ def callback(request):
     token_info["expires_at"] = int(time.time()) + 3600
     request.session["spotify_token"] = token_info["access_token"]
     request.session["token_info"] = token_info
-    return redirect(FRONTEND_URL + "/dashboard")
+    
+    # Set session cookie with proper domain and secure settings
+    response = redirect(FRONTEND_URL + "/dashboard")
+    response.set_cookie(
+        'sessionid',
+        request.session.session_key,
+        domain='.vercel.app',  # Allow subdomains
+        secure=True,
+        samesite='None',
+        httponly=True
+    )
+    return response
 
 def logout(request):
     request.session.flush()
     return redirect(FRONTEND_URL)
-
-def check_auth(request):
-    if "spotify_token" in request.session:
-        token_info = request.session.get("token_info")
-        if token_info and token_info.get("expires_at", 0) < time.time():
-            request.session.flush()
-            return JsonResponse({'authenticated': False})
-        return JsonResponse({'authenticated': True, 'token': request.session["spotify_token"]})
-    return JsonResponse({'authenticated': False})
 
 def api_playlists(request):
     token_info = request.session.get("token_info")
