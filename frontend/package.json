@@ -21,7 +21,10 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "autoprefixer": "^10.0.1",
+    "css-loader": "^6.8.1",
     "postcss": "^8",
+    "style-loader": "^3.3.3",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }
