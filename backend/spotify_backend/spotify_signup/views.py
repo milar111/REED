@@ -204,15 +204,16 @@ def callback(request):
     
     token_info["expires_in"] = 3600  
     token_info["expires_at"] = int(time.time()) + 3600
+    
+    # Create the response first
+    response = redirect(FRONTEND_URL + "/dashboard")
+    
+    # Save session variables after creating the response
     request.session["spotify_token"] = token_info["access_token"]
     request.session["token_info"] = token_info
     
-    # Create the response
-    response = redirect(FRONTEND_URL + "/dashboard")
-    
-    # Manually set the session cookie with the proper settings
-    # Django's session middleware will handle setting the cookie
-    # We just need to ensure proper response headers for CORS
+    # The session middleware will automatically add the cookie to the response
+    # We just need to add CORS headers
     response = set_cors_headers(response, request)
     
     return response

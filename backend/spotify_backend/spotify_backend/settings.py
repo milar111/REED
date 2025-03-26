@@ -38,6 +38,25 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "OPTIONS",
+]
+
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "cookie",
+]
+
 
 # Application definition
 
@@ -98,12 +117,13 @@ DATABASES = {
 }
 
 # Session settings
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
 SESSION_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_SECURE = True  # Only works over HTTPS
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_DOMAIN = '.vercel.app'  # Allow subdomains
+# Remove the domain restriction to allow the cookie to be sent to any domain
+# SESSION_COOKIE_DOMAIN = '.vercel.app'  # Allow subdomains
 # For cross-domain cookie
 CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SECURE = True
