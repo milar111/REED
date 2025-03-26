@@ -23,6 +23,7 @@ urlpatterns = [
     path('login', views.login, name='login'),
     path('callback', views.callback, name='callback'),
     path('check_auth', views.check_auth, name='check_auth'),
+    path('options-check-auth', views.options_check_auth, name='options_check_auth'),
     path('logout', views.logout, name='logout'),
     # path('download/<str:playlist_id>/', views.download_playlist, name='download_playlist'),
     path('api/playlists', views.api_playlists, name='api_playlists'),

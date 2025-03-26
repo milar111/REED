@@ -10,6 +10,7 @@ import tempfile
 from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from django.views.decorators.http import require_http_methods
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,8 +20,23 @@ CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI") #, "http://localhost:8000/callback"
 FRONTEND_URL = os.getenv("FRONTEND_URL") # , "http://localhost:3000"
 
+# Add allowed origins for CORS
+ALLOWED_ORIGINS = [
+    'https://milar111.github.io',
+    'http://localhost:3000'
+]
+
 # Global dictionary to track download statuses
 download_statuses = {}
+
+def set_cors_headers(response, request):
+    origin = request.headers.get('Origin', '')
+    if origin in ALLOWED_ORIGINS:
+        response["Access-Control-Allow-Origin"] = origin
+        response["Access-Control-Allow-Credentials"] = "true"
+        response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
 
 def get_spotify_oauth(request):
     return SpotifyOAuth(
@@ -190,29 +206,52 @@ def callback(request):
     token_info["expires_at"] = int(time.time()) + 3600
     request.session["spotify_token"] = token_info["access_token"]
     request.session["token_info"] = token_info
-    return redirect(FRONTEND_URL + "/dashboard")
+    
+    # Create the response
+    response = redirect(FRONTEND_URL + "/dashboard")
+    
+    # Set session cookie properties for cross-origin
+    response.cookies.update(request.session.get_session_cookie())
+    for cookie in response.cookies:
+        response.cookies[cookie]['samesite'] = 'None'
+        response.cookies[cookie]['secure'] = True
+    
+    return response
 
 def logout(request):
     request.session.flush()
     return redirect(FRONTEND_URL)
 
 def check_auth(request):
+    response = None
     if "spotify_token" in request.session:
         token_info = request.session.get("token_info")
         if token_info and token_info.get("expires_at", 0) < time.time():
             request.session.flush()
-            return JsonResponse({'authenticated': False})
-        return JsonResponse({'authenticated': True, 'token': request.session["spotify_token"]})
-    return JsonResponse({'authenticated': False})
+            response = JsonResponse({'authenticated': False})
+        else:
+            response = JsonResponse({'authenticated': True, 'token': request.session["spotify_token"]})
+    else:
+        response = JsonResponse({'authenticated': False})
+    
+    # Add CORS headers to the response
+    return set_cors_headers(response, request)
+
+@csrf_exempt
+def options_check_auth(request):
+    response = HttpResponse()
+    return set_cors_headers(response, request)
 
 def api_playlists(request):
     token_info = request.session.get("token_info")
     if token_info and token_info.get("expires_at", 0) < time.time():
         request.session.flush()
-        return JsonResponse({'error': 'Token expired'}, status=401)
+        response = JsonResponse({'error': 'Token expired'}, status=401)
+        return set_cors_headers(response, request)
     
     if "spotify_token" not in request.session:
-        return JsonResponse({'error': 'Not authenticated'}, status=401)
+        response = JsonResponse({'error': 'Not authenticated'}, status=401)
+        return set_cors_headers(response, request)
     
     try:
         sp = spotipy.Spotify(auth=request.session["spotify_token"])
@@ -223,6 +262,8 @@ def api_playlists(request):
             results = sp.next(results)
             playlists.extend(results.get('items', []))
         
-        return JsonResponse({'playlists': playlists})
+        response = JsonResponse({'playlists': playlists})
+        return set_cors_headers(response, request)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        response = JsonResponse({'error': str(e)}, status=500)
+        return set_cors_headers(response, request)

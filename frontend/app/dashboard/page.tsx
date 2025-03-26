@@ -177,13 +177,15 @@ export default function Dashboard() {
         });
         
         if (!authResponse.ok) {
-          window.location.href = '/login';
+          const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
+          window.location.href = `${basePath}/login`;
           return;
         }
         
         const authData = await authResponse.json();
         if (!authData.authenticated) {
-          window.location.href = '/login';
+          const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
+          window.location.href = `${basePath}/login`;
           return;
         }
 
@@ -193,7 +195,8 @@ export default function Dashboard() {
         
         if (!playlistsResponse.ok) {
           if (playlistsResponse.status === 401) {
-            window.location.href = '/login';
+            const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
+            window.location.href = `${basePath}/login`;
             return;
           }
           throw new Error('Failed to load playlists');

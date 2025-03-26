@@ -90,6 +90,12 @@ CACHES = {
 # Session settings
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True  # Only works over HTTPS
+SESSION_COOKIE_HTTPONLY = True
+# For cross-domain cookie
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = True
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
