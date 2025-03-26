@@ -7,63 +7,25 @@ export async function middleware(request: NextRequest) {
   // In production, paths include the /REED prefix but we need to normalize them for our logic
   const normalizedPath = pathname.replace(/^\/REED/, '');
   
-  // Only run this for login and dashboard pages
-  if (normalizedPath !== '/login' && normalizedPath !== '/dashboard') {
+  // Only protect the dashboard page - let the client-side handle auth for all other pages
+  if (normalizedPath !== '/dashboard') {
     return NextResponse.next();
   }
   
-  // Don't check auth for login page - let the backend handle redirection if needed
-  if (normalizedPath === '/login') {
-    return NextResponse.next();
-  }
+  console.log('Dashboard access, checking auth...');
   
-  try {
-    console.log('Checking auth status...');
-    
-    const cookies = request.headers.get('Cookie');
-    console.log('Cookies sent in request:', cookies);
-    
-    const response = await fetch('https://reed-gilt.vercel.app/check_auth', {
-      method: 'GET',
-      headers: {
-        'Cookie': cookies || '',
-        'Origin': request.headers.get('origin') || new URL(request.url).origin,
-      },
-      credentials: 'include',
-      cache: 'no-store', // Disable caching
-    });
-    
-    console.log('Auth response status:', response.status);
-    
-    if (!response.ok) {
-      console.error('Auth check failed:', response.status);
-      
-      // Handle redirects based on environment
-      const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
-      return NextResponse.redirect(new URL(`${basePath}/login`, request.url));
-    }
-    
-    const data = await response.json();
-    console.log('Auth data:', data);
-    
-    const isAuthenticated = data.authenticated;
-    
-    // Redirect to login if not authenticated and trying to access dashboard
-    if (!isAuthenticated) {
-      const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
-      return NextResponse.redirect(new URL(`${basePath}/login`, request.url));
-    }
-  } catch (error) {
-    console.error('Error checking auth status:', error);
-    
-    // Handle redirect in case of error
+  // Check for cookies - if no cookies are present, redirect to login
+  const cookies = request.headers.get('Cookie');
+  if (!cookies || !cookies.includes('sessionid=')) {
+    console.log('No session cookie found, redirecting to login');
     const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
     return NextResponse.redirect(new URL(`${basePath}/login`, request.url));
   }
   
+  // If cookies exist, let the dashboard page handle the rest
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/login', '/dashboard', '/REED/login', '/REED/dashboard'],
+  matcher: ['/dashboard', '/REED/dashboard'],
 };

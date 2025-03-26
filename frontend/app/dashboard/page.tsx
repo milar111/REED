@@ -172,29 +172,44 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchPlaylists() {
       try {
+        console.log('Checking authentication status...');
+        
         const authResponse = await fetch('https://reed-gilt.vercel.app/check_auth', {
+          method: 'GET',
           credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+          }
         });
         
+        console.log('Auth response status:', authResponse.status);
+        console.log('Auth response headers:', Object.fromEntries([...authResponse.headers]));
+        
         if (!authResponse.ok) {
+          console.error('Auth check failed with status:', authResponse.status);
           const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
           window.location.href = `${basePath}/login`;
           return;
         }
         
         const authData = await authResponse.json();
+        console.log('Auth data received:', authData);
+        
         if (!authData.authenticated) {
+          console.error('Not authenticated according to response data');
           const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
           window.location.href = `${basePath}/login`;
           return;
         }
 
+        console.log('Authentication successful, fetching playlists...');
         const playlistsResponse = await fetch('https://reed-gilt.vercel.app/api/playlists', {
           credentials: 'include',
         });
         
         if (!playlistsResponse.ok) {
           if (playlistsResponse.status === 401) {
+            console.error('Playlists fetch returned 401 unauthorized');
             const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
             window.location.href = `${basePath}/login`;
             return;
@@ -203,14 +218,20 @@ export default function Dashboard() {
         }
         
         const data = await playlistsResponse.json();
+        console.log('Playlists received:', data);
         setPlaylists(data.playlists);
       } catch (err) {
-        console.error('Error fetching playlists:', err);
+        console.error('Error in fetchPlaylists:', err);
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
       } finally {
         setIsLoading(false);
       }
     }
+    
+    // Check for cookies first
+    const cookies = document.cookie;
+    console.log('Current cookies:', cookies);
+    
     fetchPlaylists();
   }, []);
 

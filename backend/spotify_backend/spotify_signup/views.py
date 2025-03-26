@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from django.views.decorators.http import require_http_methods
+from django.conf import settings
 
 # Load environment variables from .env file
 load_dotenv()
@@ -205,16 +206,40 @@ def callback(request):
     token_info["expires_in"] = 3600  
     token_info["expires_at"] = int(time.time()) + 3600
     
-    # Create the response first
-    response = redirect(FRONTEND_URL + "/dashboard")
-    
-    # Save session variables after creating the response
+    # Save to session first
     request.session["spotify_token"] = token_info["access_token"]
     request.session["token_info"] = token_info
     
-    # The session middleware will automatically add the cookie to the response
-    # We just need to add CORS headers
-    response = set_cors_headers(response, request)
+    # Force session save
+    request.session.save()
+    
+    # Debug output
+    print("Session keys after auth:", list(request.session.keys()))
+    print("Session key:", request.session.session_key)
+    
+    # Create the response
+    response = redirect(FRONTEND_URL + "/dashboard")
+    
+    # Explicitly set the session cookie
+    response.set_cookie(
+        settings.SESSION_COOKIE_NAME,
+        request.session.session_key,
+        max_age=settings.SESSION_COOKIE_AGE,
+        expires=None,
+        domain=None,  # Don't restrict to a specific domain
+        path=settings.SESSION_COOKIE_PATH,
+        secure=settings.SESSION_COOKIE_SECURE,
+        httponly=settings.SESSION_COOKIE_HTTPONLY,
+        samesite='None'
+    )
+    
+    # Add CORS headers
+    origin = request.headers.get('Origin', '')
+    if origin:
+        response["Access-Control-Allow-Origin"] = origin
+        response["Access-Control-Allow-Credentials"] = "true"
+        response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept"
     
     return response
 
@@ -222,48 +247,106 @@ def logout(request):
     request.session.flush()
     return redirect(FRONTEND_URL)
 
+@csrf_exempt
 def check_auth(request):
+    # Print debugging information
+    print("check_auth called")
+    print("Session keys:", list(request.session.keys()))
+    print("Cookies:", request.headers.get('Cookie', ''))
+    print("Origin:", request.headers.get('Origin', ''))
+    
     response = None
     if "spotify_token" in request.session:
         token_info = request.session.get("token_info")
         if token_info and token_info.get("expires_at", 0) < time.time():
+            print("Token expired")
             request.session.flush()
             response = JsonResponse({'authenticated': False})
         else:
+            print("User is authenticated")
             response = JsonResponse({'authenticated': True, 'token': request.session["spotify_token"]})
     else:
+        print("No spotify_token in session")
         response = JsonResponse({'authenticated': False})
     
     # Add CORS headers to the response
-    return set_cors_headers(response, request)
+    origin = request.headers.get('Origin', '')
+    if origin:
+        response["Access-Control-Allow-Origin"] = origin
+        response["Access-Control-Allow-Credentials"] = "true"
+        response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept"
+    
+    # Ensure the session cookie works cross-domain
+    if not request.session.is_empty():
+        print("Setting session cookie for cross-domain use")
+        response.set_cookie(
+            settings.SESSION_COOKIE_NAME,
+            request.session.session_key,
+            max_age=settings.SESSION_COOKIE_AGE,
+            expires=None,
+            domain=None,  # Don't restrict to a specific domain
+            path=settings.SESSION_COOKIE_PATH,
+            secure=settings.SESSION_COOKIE_SECURE,
+            httponly=settings.SESSION_COOKIE_HTTPONLY,
+            samesite='None'
+        )
+    
+    return response
 
 @csrf_exempt
 def options_check_auth(request):
     response = HttpResponse()
     return set_cors_headers(response, request)
 
+@csrf_exempt
 def api_playlists(request):
+    # Debug output
+    print("api_playlists called")
+    print("Session keys:", list(request.session.keys()))
+    print("Cookies:", request.headers.get('Cookie', ''))
+    
     token_info = request.session.get("token_info")
     if token_info and token_info.get("expires_at", 0) < time.time():
         request.session.flush()
         response = JsonResponse({'error': 'Token expired'}, status=401)
-        return set_cors_headers(response, request)
-    
-    if "spotify_token" not in request.session:
+    elif "spotify_token" not in request.session:
         response = JsonResponse({'error': 'Not authenticated'}, status=401)
-        return set_cors_headers(response, request)
-    
-    try:
-        sp = spotipy.Spotify(auth=request.session["spotify_token"])
-        playlists = []
-        results = sp.current_user_playlists(limit=50)
-        playlists.extend(results.get('items', []))
-        while results.get('next'):
-            results = sp.next(results)
+    else:
+        try:
+            sp = spotipy.Spotify(auth=request.session["spotify_token"])
+            playlists = []
+            results = sp.current_user_playlists(limit=50)
             playlists.extend(results.get('items', []))
-        
-        response = JsonResponse({'playlists': playlists})
-        return set_cors_headers(response, request)
-    except Exception as e:
-        response = JsonResponse({'error': str(e)}, status=500)
-        return set_cors_headers(response, request)
+            while results.get('next'):
+                results = sp.next(results)
+                playlists.extend(results.get('items', []))
+            
+            response = JsonResponse({'playlists': playlists})
+        except Exception as e:
+            print("Error fetching playlists:", str(e))
+            response = JsonResponse({'error': str(e)}, status=500)
+    
+    # Add CORS headers
+    origin = request.headers.get('Origin', '')
+    if origin:
+        response["Access-Control-Allow-Origin"] = origin
+        response["Access-Control-Allow-Credentials"] = "true"
+        response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept"
+    
+    # Set session cookie
+    if not request.session.is_empty():
+        response.set_cookie(
+            settings.SESSION_COOKIE_NAME,
+            request.session.session_key,
+            max_age=settings.SESSION_COOKIE_AGE,
+            expires=None,
+            domain=None,
+            path=settings.SESSION_COOKIE_PATH,
+            secure=settings.SESSION_COOKIE_SECURE,
+            httponly=settings.SESSION_COOKIE_HTTPONLY,
+            samesite='None'
+        )
+    
+    return response
