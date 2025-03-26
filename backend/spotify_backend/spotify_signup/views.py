@@ -206,27 +206,25 @@ def callback(request):
     token_info["expires_in"] = 3600  
     token_info["expires_at"] = int(time.time()) + 3600
     
-    # Save to session first
+    # Save to session
     request.session["spotify_token"] = token_info["access_token"]
     request.session["token_info"] = token_info
-    
-    # Force session save
     request.session.save()
     
-    # Debug output
     print("Session keys after auth:", list(request.session.keys()))
     print("Session key:", request.session.session_key)
     
-    # Create the response
-    response = redirect(FRONTEND_URL + "/dashboard")
+    # Create the response with token in URL
+    redirect_url = f"{FRONTEND_URL}/dashboard?token={token_info['access_token']}"
+    response = redirect(redirect_url)
     
-    # Explicitly set the session cookie
+    # Still set the session cookie as a fallback
     response.set_cookie(
         settings.SESSION_COOKIE_NAME,
         request.session.session_key,
         max_age=settings.SESSION_COOKIE_AGE,
         expires=None,
-        domain=None,  # Don't restrict to a specific domain
+        domain=None,
         path=settings.SESSION_COOKIE_PATH,
         secure=settings.SESSION_COOKIE_SECURE,
         httponly=settings.SESSION_COOKIE_HTTPONLY,

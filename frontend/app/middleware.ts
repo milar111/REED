@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
   
   // In production, paths include the /REED prefix but we need to normalize them for our logic
   const normalizedPath = pathname.replace(/^\/REED/, '');
@@ -12,7 +12,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  console.log('Dashboard access, checking auth...');
+  console.log('Dashboard access, checking for auth...');
+  
+  // If we have a token in the URL, skip the cookie check
+  if (search && search.includes('token=')) {
+    console.log('Token found in URL, allowing access');
+    return NextResponse.next();
+  }
   
   // Check for cookies - if no cookies are present, redirect to login
   const cookies = request.headers.get('Cookie');

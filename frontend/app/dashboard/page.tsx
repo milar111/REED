@@ -174,6 +174,37 @@ export default function Dashboard() {
       try {
         console.log('Checking authentication status...');
         
+        // Check for token in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        
+        if (token) {
+          console.log('Token found in URL, using it directly');
+          // Use the token to fetch playlists directly from Spotify API
+          
+          const playlistsResponse = await fetch('https://api.spotify.com/v1/me/playlists', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (!playlistsResponse.ok) {
+            console.error('Failed to fetch playlists with token from URL:', playlistsResponse.status);
+            throw new Error('Failed to fetch playlists');
+          }
+          
+          const data = await playlistsResponse.json();
+          console.log('Playlists fetched directly from Spotify API');
+          setPlaylists(data.items);
+          
+          // Clear token from URL for security
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Fallback to normal authentication check
+        console.log('No token in URL, checking session auth');
         const authResponse = await fetch('https://reed-gilt.vercel.app/check_auth', {
           method: 'GET',
           credentials: 'include',
