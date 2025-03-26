@@ -26,7 +26,6 @@ export default function Login() {
           
           <div className="space-y-4">
             <a 
-              // href="http://localhost:8000/login"
               href="https://reed-gilt.vercel.app/login"
               className="w-full flex items-center justify-center gap-3 bg-[#1DB954] text-white py-3 rounded-lg font-medium hover:bg-[#1ed760] transition-colors"
             >
