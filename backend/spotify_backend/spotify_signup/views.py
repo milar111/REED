@@ -210,11 +210,10 @@ def callback(request):
     # Create the response
     response = redirect(FRONTEND_URL + "/dashboard")
     
-    # Set session cookie properties for cross-origin
-    response.cookies.update(request.session.get_session_cookie())
-    for cookie in response.cookies:
-        response.cookies[cookie]['samesite'] = 'None'
-        response.cookies[cookie]['secure'] = True
+    # Manually set the session cookie with the proper settings
+    # Django's session middleware will handle setting the cookie
+    # We just need to ensure proper response headers for CORS
+    response = set_cors_headers(response, request)
     
     return response
 

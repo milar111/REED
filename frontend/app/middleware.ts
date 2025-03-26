@@ -12,13 +12,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
+  // Don't check auth for login page - let the backend handle redirection if needed
+  if (normalizedPath === '/login') {
+    return NextResponse.next();
+  }
+  
   try {
     console.log('Checking auth status...');
+    
+    const cookies = request.headers.get('Cookie');
+    console.log('Cookies sent in request:', cookies);
     
     const response = await fetch('https://reed-gilt.vercel.app/check_auth', {
       method: 'GET',
       headers: {
-        'Cookie': request.headers.get('Cookie') || '',
+        'Cookie': cookies || '',
         'Origin': request.headers.get('origin') || new URL(request.url).origin,
       },
       credentials: 'include',
@@ -40,16 +48,9 @@ export async function middleware(request: NextRequest) {
     
     const isAuthenticated = data.authenticated;
     
-    // Determine base path for redirects
-    const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
-    
-    // Redirect to dashboard if already authenticated and trying to access login
-    if (normalizedPath === '/login' && isAuthenticated) {
-      return NextResponse.redirect(new URL(`${basePath}/dashboard`, request.url));
-    }
-    
     // Redirect to login if not authenticated and trying to access dashboard
-    if (normalizedPath === '/dashboard' && !isAuthenticated) {
+    if (!isAuthenticated) {
+      const basePath = process.env.NODE_ENV === 'production' ? '/REED' : '';
       return NextResponse.redirect(new URL(`${basePath}/login`, request.url));
     }
   } catch (error) {

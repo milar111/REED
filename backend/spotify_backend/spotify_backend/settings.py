@@ -42,6 +42,8 @@ CORS_ALLOW_CREDENTIALS = True
 # Application definition
 
 INSTALLED_APPS = [
+    'django.contrib.auth',  # Required for db sessions
+    'django.contrib.contenttypes',  # Required for auth
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
@@ -87,12 +89,21 @@ CACHES = {
     }
 }
 
+# Database settings
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    }
+}
+
 # Session settings
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_CACHE_ALIAS = 'default'
 SESSION_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_SECURE = True  # Only works over HTTPS
 SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_DOMAIN = '.vercel.app'  # Allow subdomains
 # For cross-domain cookie
 CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SECURE = True
