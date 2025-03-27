@@ -24,9 +24,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL") # , "http://localhost:3000"
 # Add allowed origins for CORS
 ALLOWED_ORIGINS = [
     'https://milar111.github.io',
-    'http://localhost:3000',
-    'https://reed-gilt.vercel.app',
-    'https://reed.vercel.app'
+    'http://localhost:3000'
 ]
 
 # Global dictionary to track download statuses
@@ -123,13 +121,16 @@ def download_playlist(request, playlist_id):
     if request.method == "POST":
         try:
             temp_dir = tempfile.mkdtemp()
-            print(f"Created temporary directory: {temp_dir}")  # Debug log
+            print(f"Created temporary directory: {temp_dir}")
             
             download_statuses[playlist_id] = {
                 'completed': False,
                 'error': None,
                 'temp_dir': temp_dir,
-                'start_time': time.time()
+                'start_time': time.time(),
+                'progress': 0,
+                'total_tracks': 0,
+                'downloaded_tracks': 0
             }
 
             def download_thread():
@@ -137,41 +138,72 @@ def download_playlist(request, playlist_id):
                 attempts = 0
                 max_attempts = 5
                 
-                print(f"Starting download for playlist: {playlist_id}")  # Debug log
+                print(f"Starting download for playlist: {playlist_id}")
                 
                 while attempts < max_attempts:
                     try:
-                        print(f"Attempt {attempts + 1} of {max_attempts}")  # Debug log
+                        print(f"Attempt {attempts + 1} of {max_attempts}")
                         
                         # Check if spotdl is installed
                         try:
                             subprocess.run(["spotdl", "--version"], capture_output=True, check=True)
                         except FileNotFoundError:
-                            print("spotdl not found, attempting to install...")  # Debug log
+                            print("spotdl not found, attempting to install...")
                             subprocess.run(["pip", "install", "spotdl"], check=True)
                         
-                        result = subprocess.run(
+                        # First, get the playlist info to count tracks
+                        try:
+                            sp = spotipy.Spotify(auth=request.session.get("spotify_token"))
+                            playlist = sp.playlist(playlist_id)
+                            total_tracks = playlist['tracks']['total']
+                            download_statuses[playlist_id]['total_tracks'] = total_tracks
+                            print(f"Total tracks in playlist: {total_tracks}")
+                        except Exception as e:
+                            print(f"Error getting playlist info: {str(e)}")
+                            total_tracks = 0
+                        
+                        # Run spotdl with progress tracking
+                        process = subprocess.Popen(
                             ["spotdl", playlist_url],
-                            capture_output=True, text=True, check=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            bufsize=1,
+                            universal_newlines=True,
                             cwd=temp_dir,
                             env=dict(os.environ, PYTHONIOENCODING="utf-8")
                         )
                         
-                        print(f"spotdl stdout: {result.stdout}")  # Debug log
-                        print(f"spotdl stderr: {result.stderr}")  # Debug log
+                        while True:
+                            output = process.stdout.readline()
+                            if output == '' and process.poll() is not None:
+                                break
+                            if output:
+                                print(f"spotdl output: {output.strip()}")
+                                # Update progress based on output
+                                if "Downloaded" in output:
+                                    download_statuses[playlist_id]['downloaded_tracks'] += 1
+                                    if total_tracks > 0:
+                                        progress = (download_statuses[playlist_id]['downloaded_tracks'] / total_tracks) * 100
+                                        download_statuses[playlist_id]['progress'] = round(progress, 2)
                         
-                        # Verify files were downloaded
-                        files = os.listdir(temp_dir)
-                        if not files:
-                            raise Exception("No files were downloaded")
+                        # Check if the process completed successfully
+                        if process.returncode == 0:
+                            # Verify files were downloaded
+                            files = os.listdir(temp_dir)
+                            if not files:
+                                raise Exception("No files were downloaded")
+                                
+                            print(f"Downloaded files: {files}")
+                            download_statuses[playlist_id]['completed'] = True
+                            return
+                        else:
+                            error_message = process.stderr.read()
+                            raise subprocess.CalledProcessError(process.returncode, ["spotdl", playlist_url], stderr=error_message)
                             
-                        print(f"Downloaded files: {files}")  # Debug log
-                        download_statuses[playlist_id]['completed'] = True
-                        return
-                        
                     except subprocess.CalledProcessError as e:
                         error_message = f"stdout: {e.stdout}\nstderr: {e.stderr}"
-                        print(f"Download attempt failed: {error_message}")  # Debug log
+                        print(f"Download attempt failed: {error_message}")
                         
                         if e.stderr and "rate/request limit" in e.stderr.lower():
                             attempts += 1
@@ -194,11 +226,11 @@ def download_playlist(request, playlist_id):
             thread.daemon = True
             thread.start()
             
-            print(f"Download thread started for playlist: {playlist_id}")  # Debug log
+            print(f"Download thread started for playlist: {playlist_id}")
             return JsonResponse({'status': 'Download started'})
             
         except Exception as e:
-            print(f"Error in download_playlist: {str(e)}")  # Debug log
+            print(f"Error in download_playlist: {str(e)}")
             return JsonResponse({'error': str(e)}, status=500)
 
     return JsonResponse({'error': 'Invalid request method'}, status=405)
@@ -223,6 +255,16 @@ def check_download_status(request, playlist_id):
                 'error': 'Temporary directory was deleted'
             })
             return JsonResponse(status)
+            
+        # Add progress information to response
+        if not status.get('completed'):
+            status['status'] = 'in_progress'
+            if status.get('total_tracks', 0) > 0:
+                status['progress_message'] = f"Downloaded {status.get('downloaded_tracks', 0)} of {status.get('total_tracks', 0)} tracks ({status.get('progress', 0)}%)"
+            else:
+                status['progress_message'] = "Downloading tracks..."
+        else:
+            status['status'] = 'completed' if not status.get('error') else 'failed'
             
         return JsonResponse(status)
     return JsonResponse({"error": "Download not found"}, status=404)

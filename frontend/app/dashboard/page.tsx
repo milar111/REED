@@ -84,7 +84,8 @@ export default function Dashboard() {
       }
 
       let attempts = 0;
-      const maxAttempts = 90; // 3 minutes with 2-second intervals
+      const maxAttempts = 300; // 10 minutes with 2-second intervals
+      let lastProgressUpdate = Date.now();
       
       const pollInterval = setInterval(async () => {
         try {
@@ -99,6 +100,12 @@ export default function Dashboard() {
           }
           
           const status = await statusResponse.json();
+          
+          // Show progress update every 30 seconds
+          if (Date.now() - lastProgressUpdate > 30000) {
+            console.log(`Download in progress... Attempt ${attempts}/${maxAttempts}`);
+            lastProgressUpdate = Date.now();
+          }
           
           if (status.completed) {
             clearInterval(pollInterval);
@@ -154,7 +161,7 @@ export default function Dashboard() {
             });
           } else if (attempts >= maxAttempts) {
             clearInterval(pollInterval);
-            alert('Download timed out. Please try again.');
+            alert('Download timed out after 10 minutes. Please try again with a smaller playlist or check your internet connection.');
             setDownloadingPlaylists((prev) => {
               const newSet = new Set(prev);
               newSet.delete(playlistId);
@@ -174,7 +181,7 @@ export default function Dashboard() {
       }, 2000);
     } catch (error) {
       console.error('Download error:', error);
-      alert(`Failed to start download: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert('Failed to start download. Please try again.');
       setDownloadingPlaylists((prev) => {
         const newSet = new Set(prev);
         newSet.delete(playlistId);
