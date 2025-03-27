@@ -72,43 +72,51 @@ export default function Dashboard() {
       formData.append('format', saveFormat);
 
       // download on the server
-      // const response = await fetch(`http://localhost:8000/download/${playlistId}`, {
       const response = await fetch(`https://reed-gilt.vercel.app/download/${playlistId}`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
       });
+      
       if (!response.ok) {
-        throw new Error('Download failed to start on the server');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Download failed to start on the server');
       }
 
-      //2 seconds
+      let attempts = 0;
+      const maxAttempts = 90; // 3 minutes with 2-second intervals
+      
       const pollInterval = setInterval(async () => {
         try {
+          attempts++;
           const statusResponse = await fetch(
-            // `http://localhost:8000/download-status/${playlistId}`,
             `https://reed-gilt.vercel.app/download-status/${playlistId}`,
             { credentials: 'include' }
           );
+          
           if (!statusResponse.ok) {
             throw new Error('Failed to check download status');
           }
+          
           const status = await statusResponse.json();
+          
           if (status.completed) {
             clearInterval(pollInterval);
             if (status.error) {
               alert(`Download failed: ${status.error}`);
             } else {
               const archiveResponse = await fetch(
-                // `http://localhost:8000/download-archive/${playlistId}`,
                 `https://reed-gilt.vercel.app/download-archive/${playlistId}`,
                 { credentials: 'include' }
               );
+              
               if (!archiveResponse.ok) {
-                throw new Error('Failed to fetch the archive');
+                const errorData = await archiveResponse.json();
+                throw new Error(errorData.error || 'Failed to fetch the archive');
               }
+              
               const blob = await archiveResponse.blob();
-
+              
               if (saveFormat === 'zip') {
                 const writable = await (targetHandle as FileSystemFileHandle).createWritable();
                 await writable.write(blob);
@@ -144,10 +152,19 @@ export default function Dashboard() {
               newSet.delete(playlistId);
               return newSet;
             });
+          } else if (attempts >= maxAttempts) {
+            clearInterval(pollInterval);
+            alert('Download timed out. Please try again.');
+            setDownloadingPlaylists((prev) => {
+              const newSet = new Set(prev);
+              newSet.delete(playlistId);
+              return newSet;
+            });
           }
         } catch (error) {
           console.error('Status check failed:', error);
           clearInterval(pollInterval);
+          alert(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
           setDownloadingPlaylists((prev) => {
             const newSet = new Set(prev);
             newSet.delete(playlistId);
@@ -157,7 +174,7 @@ export default function Dashboard() {
       }, 2000);
     } catch (error) {
       console.error('Download error:', error);
-      alert('Failed to start download. Please try again.');
+      alert(`Failed to start download: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setDownloadingPlaylists((prev) => {
         const newSet = new Set(prev);
         newSet.delete(playlistId);

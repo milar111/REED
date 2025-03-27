@@ -24,7 +24,9 @@ FRONTEND_URL = os.getenv("FRONTEND_URL") # , "http://localhost:3000"
 # Add allowed origins for CORS
 ALLOWED_ORIGINS = [
     'https://milar111.github.io',
-    'http://localhost:3000'
+    'http://localhost:3000',
+    'https://reed-gilt.vercel.app',
+    'https://reed.vercel.app'
 ]
 
 # Global dictionary to track download statuses
@@ -119,59 +121,110 @@ def download_playlist(request, playlist_id):
     Includes a retry mechanism if a rate limit error is detected.
     """
     if request.method == "POST":
-        temp_dir = tempfile.mkdtemp()
-        download_statuses[playlist_id] = {
-            'completed': False,
-            'error': None,
-            'temp_dir': temp_dir 
-        }
+        try:
+            temp_dir = tempfile.mkdtemp()
+            print(f"Created temporary directory: {temp_dir}")  # Debug log
+            
+            download_statuses[playlist_id] = {
+                'completed': False,
+                'error': None,
+                'temp_dir': temp_dir,
+                'start_time': time.time()
+            }
 
-        def download_thread():
-            playlist_url = f"https://open.spotify.com/playlist/{playlist_id}"
-            attempts = 0
-            max_attempts = 5
-            while attempts < max_attempts:
-                try:
-                    result = subprocess.run(
-                        ["spotdl", playlist_url],
-                        capture_output=True, text=True, check=True,
-                        cwd=temp_dir,
-                        env=dict(os.environ, PYTHONIOENCODING="utf-8")
-                    )
-                    # Optionally log output:
-                    print("spotdl stdout:", result.stdout)
-                    print("spotdl stderr:", result.stderr)
-                    download_statuses[playlist_id]['completed'] = True
-                    return
-                except subprocess.CalledProcessError as e:
-                    error_message = f"stdout: {e.stdout}\nstderr: {e.stderr}"
-                    if e.stderr and "rate/request limit" in e.stderr.lower():
-                        attempts += 1
-                        time.sleep(10)  # wait 10 seconds before retrying
-                        continue
-                    else:
-                        download_statuses[playlist_id].update({
-                            'completed': True,
-                            'error': error_message
-                        })
+            def download_thread():
+                playlist_url = f"https://open.spotify.com/playlist/{playlist_id}"
+                attempts = 0
+                max_attempts = 5
+                
+                print(f"Starting download for playlist: {playlist_id}")  # Debug log
+                
+                while attempts < max_attempts:
+                    try:
+                        print(f"Attempt {attempts + 1} of {max_attempts}")  # Debug log
+                        
+                        # Check if spotdl is installed
+                        try:
+                            subprocess.run(["spotdl", "--version"], capture_output=True, check=True)
+                        except FileNotFoundError:
+                            print("spotdl not found, attempting to install...")  # Debug log
+                            subprocess.run(["pip", "install", "spotdl"], check=True)
+                        
+                        result = subprocess.run(
+                            ["spotdl", playlist_url],
+                            capture_output=True, text=True, check=True,
+                            cwd=temp_dir,
+                            env=dict(os.environ, PYTHONIOENCODING="utf-8")
+                        )
+                        
+                        print(f"spotdl stdout: {result.stdout}")  # Debug log
+                        print(f"spotdl stderr: {result.stderr}")  # Debug log
+                        
+                        # Verify files were downloaded
+                        files = os.listdir(temp_dir)
+                        if not files:
+                            raise Exception("No files were downloaded")
+                            
+                        print(f"Downloaded files: {files}")  # Debug log
+                        download_statuses[playlist_id]['completed'] = True
                         return
-            # If max attempts reached without success:
-            download_statuses[playlist_id].update({
-                'completed': True,
-                'error': f"Failed after {max_attempts} attempts: {error_message}"
-            })
-
-        thread = threading.Thread(target=download_thread)
-        thread.daemon = True
-        thread.start()
-
-        return JsonResponse({'status': 'Download started'})
+                        
+                    except subprocess.CalledProcessError as e:
+                        error_message = f"stdout: {e.stdout}\nstderr: {e.stderr}"
+                        print(f"Download attempt failed: {error_message}")  # Debug log
+                        
+                        if e.stderr and "rate/request limit" in e.stderr.lower():
+                            attempts += 1
+                            time.sleep(10)  # wait 10 seconds before retrying
+                            continue
+                        else:
+                            download_statuses[playlist_id].update({
+                                'completed': True,
+                                'error': error_message
+                            })
+                            return
+                            
+                # If max attempts reached without success:
+                download_statuses[playlist_id].update({
+                    'completed': True,
+                    'error': f"Failed after {max_attempts} attempts: {error_message}"
+                })
+                
+            thread = threading.Thread(target=download_thread)
+            thread.daemon = True
+            thread.start()
+            
+            print(f"Download thread started for playlist: {playlist_id}")  # Debug log
+            return JsonResponse({'status': 'Download started'})
+            
+        except Exception as e:
+            print(f"Error in download_playlist: {str(e)}")  # Debug log
+            return JsonResponse({'error': str(e)}, status=500)
 
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
 def check_download_status(request, playlist_id):
     if playlist_id in download_statuses:
-        return JsonResponse(download_statuses[playlist_id])
+        status = download_statuses[playlist_id]
+        
+        # Check for timeout (30 minutes)
+        if not status.get('completed') and time.time() - status.get('start_time', 0) > 1800:
+            status.update({
+                'completed': True,
+                'error': 'Download timed out after 30 minutes'
+            })
+            return JsonResponse(status)
+            
+        # Check if temp directory still exists
+        temp_dir = status.get('temp_dir')
+        if temp_dir and not os.path.exists(temp_dir):
+            status.update({
+                'completed': True,
+                'error': 'Temporary directory was deleted'
+            })
+            return JsonResponse(status)
+            
+        return JsonResponse(status)
     return JsonResponse({"error": "Download not found"}, status=404)
 
 def get_download_archive(request, playlist_id):
