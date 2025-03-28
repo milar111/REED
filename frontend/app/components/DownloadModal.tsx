@@ -5,6 +5,7 @@ interface DownloadModalProps {
   playlist: Playlist | undefined;
   selectedDirHandle: FileSystemDirectoryHandle | null;
   saveFormat: 'zip' | 'folder';
+  playlistUrl: string;
   onClose: () => void;
   onSelectFolder: () => void;
   onConfirm: () => void;
@@ -16,6 +17,7 @@ export default function DownloadModal({
   playlist,
   selectedDirHandle,
   saveFormat,
+  playlistUrl,
   onClose,
   onSelectFolder,
   onConfirm,
@@ -25,7 +27,7 @@ export default function DownloadModal({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-slate-800 rounded-lg p-6 w-80">
+      <div className="bg-slate-800 rounded-lg p-6 w-96 max-w-full">
         <h3 className="text-lg text-emerald-400 mb-2">
           {playlist?.name || 'Playlist'}
         </h3>
@@ -67,6 +69,25 @@ export default function DownloadModal({
             />
             Normal Folder
           </label>
+        </div>
+        
+        <div className="mb-4 p-3 bg-slate-700 rounded text-amber-300 text-sm">
+          <p className="mb-2"><strong>Note:</strong> The online download feature requires dependencies that may not be available in the hosted environment.</p>
+          <p>For best results, you can:</p>
+          <ol className="list-decimal pl-5">
+            <li className="mb-1">Install <a href="https://github.com/spotDL/spotify-downloader" target="_blank" rel="noopener" className="underline">spotdl</a> locally</li>
+            <li>Run this command: 
+              <div className="bg-slate-800 p-2 mt-1 rounded overflow-auto">
+                <code>spotdl --bitrate 192k "{playlistUrl}"</code>
+              </div>
+              <button 
+                onClick={() => navigator.clipboard.writeText(`spotdl --bitrate 192k "${playlistUrl}"`)}
+                className="mt-2 text-xs px-2 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded"
+              >
+                Copy Command
+              </button>
+            </li>
+          </ol>
         </div>
 
         <div className="flex justify-end gap-3">

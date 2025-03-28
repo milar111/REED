@@ -26,9 +26,16 @@ export default function Dashboard() {
   const [selectedPlaylistForDownload, setSelectedPlaylistForDownload] = useState<string | null>(null);
   const [selectedDirHandle, setSelectedDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [saveFormat, setSaveFormat] = useState<'zip' | 'folder'>('zip');
+  const [playlistUrl, setPlaylistUrl] = useState<string>('');
 
   const openDownloadModal = (playlistId: string) => {
     setSelectedPlaylistForDownload(playlistId);
+    const selectedPlaylist = playlists.find(p => p.id === playlistId);
+    if (selectedPlaylist && selectedPlaylist.external_urls && selectedPlaylist.external_urls.spotify) {
+      setPlaylistUrl(selectedPlaylist.external_urls.spotify);
+    } else {
+      setPlaylistUrl(`https://open.spotify.com/playlist/${playlistId}`);
+    }
     setModalOpen(true);
   };
 
@@ -346,6 +353,7 @@ export default function Dashboard() {
         playlist={currentPlaylist}
         selectedDirHandle={selectedDirHandle}
         saveFormat={saveFormat}
+        playlistUrl={playlistUrl}
         onClose={() => setModalOpen(false)}
         onSelectFolder={handleSelectFolder}
         onConfirm={startDownload}

@@ -166,6 +166,27 @@ def download_playlist(request, playlist_id):
                             subprocess.run(["pip", "install", "spotdl"], check=True)
                             print("spotdl installed successfully")
                         
+                        # Check if ffmpeg is installed and working
+                        try:
+                            ffmpeg_result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, check=True)
+                            print(f"ffmpeg detected: {ffmpeg_result.stdout.split('\n')[0] if ffmpeg_result.stdout else 'unknown version'}")
+                        except FileNotFoundError:
+                            error_msg = "ffmpeg not found - this dependency is required but may not be available in restricted environments like Vercel"
+                            print(error_msg)
+                            download_statuses[playlist_id].update({
+                                'completed': True,
+                                'error': error_msg
+                            })
+                            return
+                        except Exception as e:
+                            error_msg = f"Error checking ffmpeg: {str(e)}"
+                            print(error_msg)
+                            download_statuses[playlist_id].update({
+                                'completed': True, 
+                                'error': error_msg
+                            })
+                            return
+                        
                         # Run spotdl with progress tracking
                         cmd = ["spotdl", "--bitrate", "192k", playlist_url]
                         print(f"Executing command: {' '.join(cmd)}")
@@ -284,13 +305,23 @@ def get_download_archive(request, playlist_id):
         if not status.get('completed'):
             return JsonResponse({'error': 'Download still in progress'}, status=400)
         if status.get('error'):
-            return JsonResponse({'error': status['error']}, status=500)
+            # Check if the error is related to ffmpeg or environment limitations
+            error_msg = status.get('error')
+            if "ffmpeg not found" in error_msg or "command not found" in error_msg.lower():
+                error_msg = "The download could not be completed due to server environment limitations. " + \
+                           "Vercel and similar hosting environments don't support running ffmpeg and other binaries. " + \
+                           "Please use the spotdl command locally on your computer instead."
+            return JsonResponse({'error': error_msg}, status=500)
         
         temp_dir = status.get('temp_dir')
         archive_path = os.path.join(tempfile.gettempdir(), f"{playlist_id}.zip")
-        shutil.make_archive(base_name=archive_path.replace('.zip',''), format='zip', root_dir=temp_dir)
         
-        return FileResponse(open(archive_path, 'rb'), as_attachment=True, filename=f"{playlist_id}.zip")
+        try:
+            shutil.make_archive(base_name=archive_path.replace('.zip',''), format='zip', root_dir=temp_dir)
+            return FileResponse(open(archive_path, 'rb'), as_attachment=True, filename=f"{playlist_id}.zip")
+        except Exception as e:
+            print(f"Error creating archive: {str(e)}")
+            return JsonResponse({'error': f"Failed to create archive: {str(e)}"}, status=500)
         
     return JsonResponse({'error': 'Download not found'}, status=404)
 
