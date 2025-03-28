@@ -146,10 +146,12 @@ def download_playlist(request, playlist_id):
                         
                         # Check if spotdl is installed
                         try:
-                            subprocess.run(["spotdl", "--version"], capture_output=True, check=True)
+                            version_result = subprocess.run(["spotdl", "--version"], capture_output=True, text=True, check=True)
+                            print(f"spotdl version: {version_result.stdout.strip()}")
                         except FileNotFoundError:
                             print("spotdl not found, attempting to install...")
                             subprocess.run(["pip", "install", "spotdl"], check=True)
+                            print("spotdl installed successfully")
                         
                         # First, get the playlist info to count tracks
                         try:
@@ -162,9 +164,11 @@ def download_playlist(request, playlist_id):
                             print(f"Error getting playlist info: {str(e)}")
                             total_tracks = 0
                         
+                        print(f"Starting download with command: spotdl --bitrate 192k {playlist_url}")
+                        
                         # Run spotdl with progress tracking
                         process = subprocess.Popen(
-                            ["spotdl", playlist_url],
+                            ["spotdl", "--bitrate", "192k", playlist_url],
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             text=True,
@@ -195,11 +199,13 @@ def download_playlist(request, playlist_id):
                                 raise Exception("No files were downloaded")
                                 
                             print(f"Downloaded files: {files}")
+                            print(f"Number of files downloaded: {len(files)}")
                             download_statuses[playlist_id]['completed'] = True
                             return
                         else:
                             error_message = process.stderr.read()
-                            raise subprocess.CalledProcessError(process.returncode, ["spotdl", playlist_url], stderr=error_message)
+                            print(f"spotdl error output: {error_message}")
+                            raise subprocess.CalledProcessError(process.returncode, ["spotdl", "--bitrate", "192k", playlist_url], stderr=error_message)
                             
                     except subprocess.CalledProcessError as e:
                         error_message = f"stdout: {e.stdout}\nstderr: {e.stderr}"
