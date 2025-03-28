@@ -134,7 +134,20 @@ def download_playlist(request, playlist_id):
             }
 
             def download_thread():
-                playlist_url = f"https://open.spotify.com/playlist/{playlist_id}"
+                # Get the full playlist URL from Spotify
+                try:
+                    sp = spotipy.Spotify(auth=request.session.get("spotify_token"))
+                    playlist = sp.playlist(playlist_id)
+                    playlist_url = playlist['external_urls']['spotify']
+                    total_tracks = playlist['tracks']['total']
+                    download_statuses[playlist_id]['total_tracks'] = total_tracks
+                    print(f"Total tracks in playlist: {total_tracks}")
+                    print(f"Using playlist URL: {playlist_url}")
+                except Exception as e:
+                    print(f"Error getting playlist info: {str(e)}")
+                    playlist_url = f"https://open.spotify.com/playlist/{playlist_id}"
+                    total_tracks = 0
+                
                 attempts = 0
                 max_attempts = 5
                 
@@ -144,7 +157,7 @@ def download_playlist(request, playlist_id):
                     try:
                         print(f"Attempt {attempts + 1} of {max_attempts}")
                         
-                        # Check if spotdl is installed
+                        # Check if spotdl is installed and get version
                         try:
                             version_result = subprocess.run(["spotdl", "--version"], capture_output=True, text=True, check=True)
                             print(f"spotdl version: {version_result.stdout.strip()}")
@@ -153,22 +166,12 @@ def download_playlist(request, playlist_id):
                             subprocess.run(["pip", "install", "spotdl"], check=True)
                             print("spotdl installed successfully")
                         
-                        # First, get the playlist info to count tracks
-                        try:
-                            sp = spotipy.Spotify(auth=request.session.get("spotify_token"))
-                            playlist = sp.playlist(playlist_id)
-                            total_tracks = playlist['tracks']['total']
-                            download_statuses[playlist_id]['total_tracks'] = total_tracks
-                            print(f"Total tracks in playlist: {total_tracks}")
-                        except Exception as e:
-                            print(f"Error getting playlist info: {str(e)}")
-                            total_tracks = 0
-                        
-                        print(f"Starting download with command: spotdl --bitrate 192k {playlist_url}")
-                        
                         # Run spotdl with progress tracking
+                        cmd = ["spotdl", "--bitrate", "192k", playlist_url]
+                        print(f"Executing command: {' '.join(cmd)}")
+                        
                         process = subprocess.Popen(
-                            ["spotdl", "--bitrate", "192k", playlist_url],
+                            cmd,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             text=True,
@@ -205,7 +208,7 @@ def download_playlist(request, playlist_id):
                         else:
                             error_message = process.stderr.read()
                             print(f"spotdl error output: {error_message}")
-                            raise subprocess.CalledProcessError(process.returncode, ["spotdl", "--bitrate", "192k", playlist_url], stderr=error_message)
+                            raise subprocess.CalledProcessError(process.returncode, cmd, stderr=error_message)
                             
                     except subprocess.CalledProcessError as e:
                         error_message = f"stdout: {e.stdout}\nstderr: {e.stderr}"

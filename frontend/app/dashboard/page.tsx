@@ -104,14 +104,19 @@ export default function Dashboard() {
           // Show progress update every 30 seconds
           if (Date.now() - lastProgressUpdate > 30000) {
             console.log(`Download in progress... Attempt ${attempts}/${maxAttempts}`);
+            if (status.progress_message) {
+              console.log(status.progress_message);
+            }
             lastProgressUpdate = Date.now();
           }
           
           if (status.completed) {
             clearInterval(pollInterval);
             if (status.error) {
+              console.error('Download failed:', status.error);
               alert(`Download failed: ${status.error}`);
             } else {
+              console.log('Download completed, fetching archive...');
               const archiveResponse = await fetch(
                 `https://reed-gilt.vercel.app/download-archive/${playlistId}`,
                 { credentials: 'include' }
@@ -122,6 +127,7 @@ export default function Dashboard() {
                 throw new Error(errorData.error || 'Failed to fetch the archive');
               }
               
+              console.log('Archive received, saving files...');
               const blob = await archiveResponse.blob();
               
               if (saveFormat === 'zip') {
@@ -152,6 +158,7 @@ export default function Dashboard() {
                   }
                 }
               }
+              console.log('Files saved successfully');
               alert('Download complete and saved to your selected folder.');
             }
             setDownloadingPlaylists((prev) => {
@@ -161,6 +168,7 @@ export default function Dashboard() {
             });
           } else if (attempts >= maxAttempts) {
             clearInterval(pollInterval);
+            console.error('Download timed out');
             alert('Download timed out after 10 minutes. Please try again with a smaller playlist or check your internet connection.');
             setDownloadingPlaylists((prev) => {
               const newSet = new Set(prev);
@@ -181,7 +189,7 @@ export default function Dashboard() {
       }, 2000);
     } catch (error) {
       console.error('Download error:', error);
-      alert('Failed to start download. Please try again.');
+      alert(`Failed to start download: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setDownloadingPlaylists((prev) => {
         const newSet = new Set(prev);
         newSet.delete(playlistId);
