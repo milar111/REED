@@ -51,222 +51,63 @@ export default function Dashboard() {
 
   // download process when the user confirms
   const startDownload = async () => {
-    if (!selectedPlaylistForDownload || !selectedDirHandle) {
-      alert('Please select a folder to save your music.');
+    if (!selectedPlaylistForDownload) {
+      alert('Please select a playlist first');
       return;
     }
-    const playlistId = selectedPlaylistForDownload;
-    setModalOpen(false);
-    setDownloadingPlaylists((prev) => new Set(prev).add(playlistId));
-
-    const playlistName = playlists.find((p) => p.id === playlistId)?.name || playlistId;
-    let fileName = saveFormat === 'zip' ? `${playlistName}.zip` : playlistName;
 
     try {
-      let targetHandle: FileSystemFileHandle | FileSystemDirectoryHandle;
-      if (saveFormat === 'zip') {
-        targetHandle = await selectedDirHandle.getFileHandle(fileName, { create: true });
-      } else {
-        if (!selectedDirHandle.getDirectoryHandle) {
-          throw new Error("Directory creation is not supported in this browser.");
-        }
-        targetHandle = await selectedDirHandle.getDirectoryHandle(fileName, { create: true });
+      setDownloading(true);
+      setDownloadStatus('Starting download...');
+
+      // Get the playlist URL
+      const playlist = playlists.find((p) => p.id === selectedPlaylistForDownload);
+      if (!playlist) {
+        throw new Error('Playlist not found');
       }
 
-      const formData = new FormData();
-      formData.append('download_dir', selectedDirHandle.name);
-      formData.append('playlist_name', playlistName);
-      formData.append('format', saveFormat);
-
-      // Start the download process
-      const response = await fetch(`https://reed-gilt.vercel.app/download/${playlistId}`, {
+      // Call the downloader service
+      const response = await fetch('https://reed-downloader.onrender.com/download', {
         method: 'POST',
-        credentials: 'include',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playlist_url: playlist.spotify_url
+        })
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Download failed to start on the server');
+        throw new Error('Download failed');
       }
+
+      // Get the zip file as a blob
+      const blob = await response.blob();
       
-      // Get the download token and webhook URL
-      const downloadData = await response.json();
-      console.log('Download initiated:', downloadData);
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${playlist.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.zip`;
       
-      let attempts = 0;
-      const maxAttempts = 300; // 10 minutes with 2-second intervals
-      let lastProgressUpdate = Date.now();
+      // Trigger the download
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setDownloadStatus('Download complete!');
+      setDownloadProgress(100);
       
-      const pollInterval = setInterval(async () => {
-        try {
-          attempts++;
-          const statusResponse = await fetch(
-            `https://reed-gilt.vercel.app/download-status/${playlistId}`,
-            { credentials: 'include' }
-          );
-          
-          if (!statusResponse.ok) {
-            throw new Error('Failed to check download status');
-          }
-          
-          const status = await statusResponse.json();
-          
-          // Show progress update every 30 seconds
-          if (Date.now() - lastProgressUpdate > 30000) {
-            console.log(`Download in progress... Attempt ${attempts}/${maxAttempts}`);
-            if (status.progress_message) {
-              console.log(status.progress_message);
-            }
-            lastProgressUpdate = Date.now();
-          }
-          
-          if (status.completed) {
-            clearInterval(pollInterval);
-            
-            // Handle the case where server can't download
-            if (status.error || status.alternative_method) {
-              console.log('Server cannot download directly:', status.error || status.alt_message);
-              
-              // Create a text file with instructions instead
-              const archiveResponse = await fetch(
-                `https://reed-gilt.vercel.app/download-archive/${playlistId}`,
-                { credentials: 'include' }
-              );
-              
-              if (archiveResponse.ok) {
-                const altData = await archiveResponse.json();
-                
-                // Create a text file with instructions
-                const instructions = 
-                  "SPOTIFY PLAYLIST DOWNLOAD INSTRUCTIONS\n" +
-                  "======================================\n\n" +
-                  `Playlist: ${altData.playlist_name || playlistName}\n\n` +
-                  "The server environment doesn't support direct downloads. " +
-                  "Please follow these instructions to download your playlist:\n\n" +
-                  "1. Install spotdl: pip install spotdl\n" +
-                  "2. Run this command in your terminal:\n\n" +
-                  `   ${altData.command || `spotdl --bitrate 192k "${playlistUrl}"`}\n\n` +
-                  "For more information, visit: https://github.com/spotDL/spotify-downloader";
-                
-                // Save the instructions file
-                const instructionsBlob = new Blob([instructions], { type: 'text/plain' });
-                const writable = await (targetHandle as FileSystemFileHandle).createWritable();
-                await writable.write(instructionsBlob);
-                await writable.close();
-                
-                alert('Download instructions have been saved to your selected folder. Please follow them to download your playlist.');
-              } else {
-                alert(`The server cannot process downloads directly. Please use the spotdl command shown in the download dialog: spotdl --bitrate 192k "${playlistUrl}"`);
-              }
-            } else {
-              // Normal download scenario (unlikely to reach here in production)
-              console.log('Download completed normally, fetching archive...');
-              const archiveResponse = await fetch(
-                `https://reed-gilt.vercel.app/download-archive/${playlistId}`,
-                { credentials: 'include' }
-              );
-              
-              if (!archiveResponse.ok) {
-                const errorData = await archiveResponse.json();
-                throw new Error(errorData.error || 'Failed to fetch the archive');
-              }
-              
-              console.log('Archive received, saving files...');
-              const blob = await archiveResponse.blob();
-              
-              if (saveFormat === 'zip') {
-                const writable = await (targetHandle as FileSystemFileHandle).createWritable();
-                await writable.write(blob);
-                await writable.close();
-              } else {
-                // Folder format handling remains the same
-                const jszip = new JSZip();
-                const zipContent = await jszip.loadAsync(blob);
-                for (const [relativePath, zipEntryRaw] of Object.entries(zipContent.files)) {
-                  const zipEntry = zipEntryRaw as JSZip.JSZipObject;
-                  if (!zipEntry.dir) {
-                    const fileData = await zipEntry.async('blob');
-                    const pathParts = relativePath.split('/').filter(Boolean);
-                    if (pathParts.length === 0) continue;
-                    let currentDir = targetHandle as FileSystemDirectoryHandle;
-                    for (let i = 0; i < pathParts.length - 1; i++) {
-                      if (!currentDir.getDirectoryHandle) {
-                        throw new Error("Directory creation is not supported in this browser.");
-                      }
-                      currentDir = await currentDir.getDirectoryHandle(pathParts[i], { create: true });
-                    }
-                    const fileHandle = await currentDir.getFileHandle(pathParts[pathParts.length - 1], { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(fileData);
-                    await writable.close();
-                  }
-                }
-              }
-              console.log('Files saved successfully');
-              alert('Download complete and saved to your selected folder.');
-            }
-            
-            setDownloadingPlaylists((prev) => {
-              const newSet = new Set(prev);
-              newSet.delete(playlistId);
-              return newSet;
-            });
-          } else if (attempts >= maxAttempts) {
-            clearInterval(pollInterval);
-            console.error('Download timed out');
-            
-            // Create instructions file in case of timeout
-            try {
-              const instructions = 
-                "SPOTIFY PLAYLIST DOWNLOAD INSTRUCTIONS\n" +
-                "======================================\n\n" +
-                `Playlist: ${playlistName}\n\n` +
-                "The download timed out. Please download your playlist using spotdl directly:\n\n" +
-                "1. Install spotdl: pip install spotdl\n" +
-                "2. Run this command in your terminal:\n\n" +
-                `   spotdl --bitrate 192k "${playlistUrl}"\n\n` +
-                "For more information, visit: https://github.com/spotDL/spotify-downloader";
-              
-              // Save the instructions file
-              const instructionsBlob = new Blob([instructions], { type: 'text/plain' });
-              const writable = await (targetHandle as FileSystemFileHandle).createWritable();
-              await writable.write(instructionsBlob);
-              await writable.close();
-              
-              alert('Download timed out. Instructions have been saved to your selected folder.');
-            } catch (e) {
-              alert(`Download timed out. Please use the spotdl command shown in the download dialog: spotdl --bitrate 192k "${playlistUrl}"`);
-            }
-            
-            setDownloadingPlaylists((prev) => {
-              const newSet = new Set(prev);
-              newSet.delete(playlistId);
-              return newSet;
-            });
-          }
-        } catch (error) {
-          console.error('Status check failed:', error);
-          clearInterval(pollInterval);
-          alert(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          setDownloadingPlaylists((prev) => {
-            const newSet = new Set(prev);
-            newSet.delete(playlistId);
-            return newSet;
-          });
-        }
-      }, 2000);
     } catch (error) {
-      console.error('Download error:', error);
-      alert(`Failed to start download: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setDownloadingPlaylists((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(playlistId);
-        return newSet;
-      });
+      console.error('Download failed:', error);
+      setDownloadStatus('Download failed. Please try again.');
+      setDownloadProgress(0);
+      alert('Failed to download playlist. Please try again later.');
     } finally {
+      setDownloading(false);
       setSelectedPlaylistForDownload(null);
-      setSelectedDirHandle(null);
+      setModalOpen(false);
     }
   };
 
