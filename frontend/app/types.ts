@@ -10,4 +10,8 @@ export interface Playlist {
   external_urls: {
     spotify: string;
   };
+  owner: {
+    display_name: string;
+    id: string;
+  };
 } 
