@@ -32,4 +32,5 @@ urlpatterns = [
     path('download/<str:playlist_id>', views.download_playlist, name='download_playlist'),
     path('download-status/<str:playlist_id>', views.check_download_status, name='check_download_status'),
     path('download-archive/<str:playlist_id>', views.get_download_archive, name='get_download_archive'),
+    path('download-result/<str:token>', views.get_download_result, name='get_download_result'),
 ]
