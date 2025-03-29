@@ -27,6 +27,9 @@ export default function Dashboard() {
   const [selectedDirHandle, setSelectedDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [saveFormat, setSaveFormat] = useState<'zip' | 'folder'>('zip');
   const [playlistUrl, setPlaylistUrl] = useState<string>('');
+  const [downloading, setDownloading] = useState<boolean>(false);
+  const [downloadStatus, setDownloadStatus] = useState<string>('');
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
 
   const openDownloadModal = (playlistId: string) => {
     setSelectedPlaylistForDownload(playlistId);
@@ -73,7 +76,7 @@ export default function Dashboard() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          playlist_url: playlist.spotify_url
+          playlist_url: playlist.external_urls.spotify
         })
       });
 
