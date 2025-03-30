@@ -62,12 +62,16 @@ export default function Dashboard() {
     try {
       setDownloading(true);
       setDownloadStatus('Starting download...');
+      console.log('Starting download process...');
 
       // Get the playlist URL
       const playlist = playlists.find((p) => p.id === selectedPlaylistForDownload);
       if (!playlist) {
         throw new Error('Playlist not found');
       }
+
+      console.log('Sending request to downloader service...');
+      console.log('Playlist URL:', playlist.external_urls.spotify);
 
       // Call the downloader service
       const response = await fetch('https://reed-downloader.onrender.com/download', {
@@ -80,12 +84,18 @@ export default function Dashboard() {
         })
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries([...response.headers]));
+
       if (!response.ok) {
-        throw new Error('Download failed');
+        const errorText = await response.text();
+        console.error('Download failed:', errorText);
+        throw new Error(`Download failed: ${errorText}`);
       }
 
       // Get the zip file as a blob
       const blob = await response.blob();
+      console.log('Received blob:', blob.size, 'bytes');
       
       // Create a download link
       const url = window.URL.createObjectURL(blob);
@@ -106,7 +116,7 @@ export default function Dashboard() {
       console.error('Download failed:', error);
       setDownloadStatus('Download failed. Please try again.');
       setDownloadProgress(0);
-      alert('Failed to download playlist. Please try again later.');
+      alert(`Failed to download playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setDownloading(false);
       setSelectedPlaylistForDownload(null);

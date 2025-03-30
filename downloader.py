@@ -20,6 +20,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Set up Spotify client with environment variables
+os.environ['SPOTIFY_CLIENT_ID'] = os.getenv('CLIENT_ID', '')
+os.environ['SPOTIFY_CLIENT_SECRET'] = os.getenv('CLIENT_SECRET', '')
+
 class DownloadRequest(BaseModel):
     playlist_url: str
 
