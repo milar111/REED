@@ -33,13 +33,11 @@ export default function Dashboard() {
 
   const openDownloadModal = (playlistId: string) => {
     setSelectedPlaylistForDownload(playlistId);
-    const selectedPlaylist = playlists.find(p => p.id === playlistId);
-    if (selectedPlaylist && selectedPlaylist.external_urls && selectedPlaylist.external_urls.spotify) {
-      setPlaylistUrl(selectedPlaylist.external_urls.spotify);
-    } else {
-      setPlaylistUrl(`https://open.spotify.com/playlist/${playlistId}`);
-    }
     setModalOpen(true);
+  };
+
+  const handleDownloadClick = (playlistId: string) => {
+    openDownloadModal(playlistId);
   };
 
   //select dir
@@ -253,28 +251,59 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-white mb-8">Your Playlists</h1>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {playlists.map((playlist) => (
-              <PlaylistCard 
+              <div
                 key={playlist.id}
-                playlist={playlist}
-                isDownloading={downloadingPlaylists.has(playlist.id)}
-                onDownload={openDownloadModal}
-              />
+                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+              >
+                <h3 className="text-xl font-semibold mb-2">{playlist.name}</h3>
+                <p className="text-gray-600 mb-4">{playlist.tracks.total} tracks</p>
+                <button
+                  onClick={() => handleDownloadClick(playlist.id)}
+                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors"
+                >
+                  Download
+                </button>
+              </div>
             ))}
           </div>
         </div>
       </section>
       <Footer />
-      <DownloadModal
-        isOpen={modalOpen}
-        playlist={currentPlaylist}
-        selectedDirHandle={selectedDirHandle}
-        saveFormat={saveFormat}
-        playlistUrl={playlistUrl}
-        onClose={() => setModalOpen(false)}
-        onSelectFolder={handleSelectFolder}
-        onConfirm={startDownload}
-        onChangeFormat={setSaveFormat}
-      />
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Download Playlist</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Save Format
+              </label>
+              <select
+                value={saveFormat}
+                onChange={(e) => setSaveFormat(e.target.value as 'zip' | 'folder')}
+                className="w-full p-2 border rounded"
+              >
+                <option value="zip">ZIP Archive</option>
+                <option value="folder">Folder</option>
+              </select>
+            </div>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => setModalOpen(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={startDownload}
+                disabled={downloading}
+                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors disabled:opacity-50"
+              >
+                {downloading ? 'Downloading...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
