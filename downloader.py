@@ -8,6 +8,7 @@ import time
 from fastapi.responses import FileResponse
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
+import uvicorn
 
 app = FastAPI()
 
@@ -56,4 +57,8 @@ async def download_playlist(request: DownloadRequest):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"} 
+    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port) 
