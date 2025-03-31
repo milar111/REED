@@ -86,14 +86,37 @@ export default function Dashboard() {
       console.log('Response status:', response.status);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Download failed:', errorText);
-        throw new Error(`Download failed: ${errorText}`);
+        const errorData = await response.json();
+        console.error('Download failed:', errorData);
+        
+        let errorMessage = errorData.detail || 'Unknown error';
+        
+        // Handle specific error cases
+        if (errorData.stdout) {
+          console.error('Command output:', errorData.stdout);
+        }
+        
+        if (errorData.stderr) {
+          console.error('Command errors:', errorData.stderr);
+        }
+        
+        throw new Error(`Download failed: ${errorMessage}`);
+      }
+
+      // Check content type to make sure we received a zip file
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/zip')) {
+        console.error('Received non-zip response:', contentType);
+        throw new Error('Server did not return a zip file. Please try again.');
       }
 
       // Get the zip file as a blob
       const blob = await response.blob();
       console.log('Received blob:', blob.size, 'bytes');
+      
+      if (blob.size < 1000) {
+        throw new Error('Downloaded file is empty or too small. No songs were downloaded.');
+      }
       
       // Create a download link
       const url = window.URL.createObjectURL(blob);
