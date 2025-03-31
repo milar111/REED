@@ -101,7 +101,8 @@ export default function Dashboard() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            playlist_url: playlist.external_urls.spotify
+            playlist_url: playlist.external_urls.spotify,
+            playlist_name: playlist.name
           })
         });
         
