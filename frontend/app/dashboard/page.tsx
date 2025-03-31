@@ -60,10 +60,9 @@ export default function Dashboard() {
     }
 
     try {
-      setDownloading(true);
-      setDownloadStatus('Starting download...');
-      console.log('Starting download process...');
-
+      setDownloadingPlaylists((prev) => new Set(prev).add(selectedPlaylistForDownload));
+      setModalOpen(false);
+      
       // Get the playlist URL
       const playlist = playlists.find((p) => p.id === selectedPlaylistForDownload);
       if (!playlist) {
@@ -85,7 +84,6 @@ export default function Dashboard() {
       });
 
       console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries([...response.headers]));
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -108,19 +106,18 @@ export default function Dashboard() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
-      setDownloadStatus('Download complete!');
-      setDownloadProgress(100);
       
+      alert('Download complete! Check your downloads folder.');
     } catch (error) {
       console.error('Download failed:', error);
-      setDownloadStatus('Download failed. Please try again.');
-      setDownloadProgress(0);
       alert(`Failed to download playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setDownloading(false);
+      setDownloadingPlaylists((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(selectedPlaylistForDownload);
+        return newSet;
+      });
       setSelectedPlaylistForDownload(null);
-      setModalOpen(false);
     }
   };
 
