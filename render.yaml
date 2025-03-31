@@ -3,7 +3,7 @@ services:
     name: reed-downloader
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn downloader:app --host 0.0.0.0 --port $PORT
+    startCommand: python -m uvicorn downloader:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0
@@ -12,4 +12,6 @@ services:
       - key: CLIENT_SECRET
         sync: false
       - key: PORT
-        value: 8000 
+        value: 8000
+      - key: PYTHONPATH
+        value: /opt/render/project/src 
