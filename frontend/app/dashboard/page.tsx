@@ -73,18 +73,60 @@ export default function Dashboard() {
       console.log('Playlist URL:', playlist.external_urls.spotify);
 
       // Direct YouTube Music approach
-      const tracks = playlist.tracks.items || [];
-      if (!tracks.length) {
+      // Check if playlist has tracks and handle different track structures
+      let trackCount = 0;
+      if (playlist.tracks) {
+        if ('items' in playlist.tracks && Array.isArray(playlist.tracks.items)) {
+          trackCount = playlist.tracks.items.length;
+        } else if ('total' in playlist.tracks) {
+          trackCount = playlist.tracks.total;
+        }
+      }
+      
+      if (trackCount === 0) {
         throw new Error('No tracks found in this playlist');
       }
 
-      alert(`Preparing to download ${tracks.length} tracks from ${playlist.name}. This will open in a new tab.`);
+      alert(`Preparing to download ${trackCount} tracks from ${playlist.name}. This will open in a new tab.`);
 
-      // Use yt-dlp.org website for direct downloads
-      window.open(`https://www.y2mate.com/youtube-playlist/${playlist.external_urls.spotify}`, '_blank');
+      // Use Cloudflare Worker to handle the download
+      try {
+        // Replace this URL with your Cloudflare Worker URL
+        const workerUrl = "https://reed-downloader.your-account.workers.dev";
+        
+        // Call the Cloudflare Worker
+        const response = await fetch(workerUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            playlist_url: playlist.external_urls.spotify
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          throw new Error(`Worker error: ${data.error}`);
+        }
+        
+        // If successful, open the download URL or conversion page
+        if (data.downloadUrl) {
+          window.open(data.downloadUrl, '_blank');
+          alert('A new tab has been opened. Your download should start automatically.');
+        } else {
+          // Fallback to Y2Mate if the worker doesn't return a download URL
+          window.open(`https://www.y2mate.com/youtube-playlist/${playlist.external_urls.spotify}`, '_blank');
+          alert('A new tab has been opened. Follow the instructions on that page to download your music.');
+        }
+      } catch (error) {
+        console.error('Worker error:', error);
+        // Fallback to Y2Mate if there's an error with the worker
+        window.open(`https://www.y2mate.com/youtube-playlist/${playlist.external_urls.spotify}`, '_blank');
+        alert('A new tab has been opened. Follow the instructions on that page to download your music.');
+      }
       
-      alert('A new tab has been opened. Follow the instructions on that page to download your music.');
-
     } catch (error) {
       console.error('Download failed:', error);
       alert(`Failed to prepare download: ${error instanceof Error ? error.message : 'Unknown error'}`);
