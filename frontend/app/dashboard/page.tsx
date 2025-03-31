@@ -88,45 +88,11 @@ export default function Dashboard() {
       }
 
       alert(`Preparing to download ${trackCount} tracks from ${playlist.name}. This will open in a new tab.`);
-
-      // Use Cloudflare Worker to handle the download
-      try {
-        // Replace this URL with your Cloudflare Worker URL after deployment
-        const workerUrl = "https://reeddownloader.daniblgarin.workers.dev"; // Your actual worker URL
-        
-        // Call the Cloudflare Worker
-        const response = await fetch(workerUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            playlist_url: playlist.external_urls.spotify,
-            playlist_name: playlist.name
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-          throw new Error(`Worker error: ${data.error}`);
-        }
-        
-        // If successful, open the download URL or conversion page
-        if (data.downloadUrl) {
-          window.open(data.downloadUrl, '_blank');
-          alert('A new tab has been opened. Your download should start automatically.');
-        } else {
-          // Fallback to Y2Mate if the worker doesn't return a download URL
-          window.open(`https://www.y2mate.com/youtube-playlist/${playlist.external_urls.spotify}`, '_blank');
-          alert('A new tab has been opened. Follow the instructions on that page to download your music.');
-        }
-      } catch (error) {
-        console.error('Worker error:', error);
-        // Fallback to Y2Mate if there's an error with the worker
-        window.open(`https://www.y2mate.com/youtube-playlist/${playlist.external_urls.spotify}`, '_blank');
-        alert('A new tab has been opened. Follow the instructions on that page to download your music.');
-      }
+      
+      // Open Y2Mate directly with playlist name for better search results
+      const searchQuery = encodeURIComponent(`${playlist.name} playlist`);
+      window.open(`https://www.y2mate.com/youtube/${searchQuery}`, '_blank');
+      alert('A new tab has been opened. Search for your playlist and download your music.');
       
     } catch (error) {
       console.error('Download failed:', error);
