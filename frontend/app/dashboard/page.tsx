@@ -92,7 +92,7 @@ export default function Dashboard() {
       // Use Cloudflare Worker to handle the download
       try {
         // Replace this URL with your Cloudflare Worker URL after deployment
-        const workerUrl = "https://reed-downloader.your-username.workers.dev"; // Update with your actual worker URL
+        const workerUrl = "https://reeddownloader.daniblgarin.workers.dev"; // Your actual worker URL
         
         // Call the Cloudflare Worker
         const response = await fetch(workerUrl, {
