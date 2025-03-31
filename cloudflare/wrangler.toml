@@ -1,0 +1,8 @@
+name = "reed-downloader"
+main = "worker.js"
+compatibility_date = "2023-03-30"
+
+[vars]
+# Define any environment variables your worker needs here
+# CLIENT_ID = ""
+# CLIENT_SECRET = "" 
