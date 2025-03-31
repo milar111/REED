@@ -5,8 +5,11 @@ import JSZip from 'jszip';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import PlaylistCard from '../components/PlaylistCard';
-import DownloadModal from '../components/DownloadModal';
+import DownloadModal from './download-modal';
 import { Playlist } from '../types';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/app/providers/AuthProvider';
+import { Playlist as PlaylistInterface } from '@/app/interfaces/Playlist';
 
 export {};
 
@@ -22,24 +25,28 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [downloadingPlaylists, setDownloadingPlaylists] = useState<Set<string>>(new Set());
 
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
-  const [selectedPlaylistForDownload, setSelectedPlaylistForDownload] = useState<string | null>(null);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState<boolean>(false);
+  const [selectedPlaylistForDownload, setSelectedPlaylistForDownload] = useState<string>('');
+  const [downloadStatus, setDownloadStatus] = useState<{ isDownloading: boolean; message: string; progress: number }>({ isDownloading: false, message: '', progress: 0 });
+  const [selectedPlaylistName, setSelectedPlaylistName] = useState<string>('');
+
   const [selectedDirHandle, setSelectedDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [saveFormat, setSaveFormat] = useState<'zip' | 'folder'>('zip');
   const [playlistUrl, setPlaylistUrl] = useState<string>('');
   const [downloading, setDownloading] = useState<boolean>(false);
-  const [downloadStatus, setDownloadStatus] = useState<string>('');
-  const [downloadProgress, setDownloadProgress] = useState<number>(0);
 
   const openDownloadModal = (playlistId: string) => {
+    const playlist = playlists.find(p => p.id === playlistId);
     setSelectedPlaylistForDownload(playlistId);
-    const selectedPlaylist = playlists.find(p => p.id === playlistId);
-    if (selectedPlaylist && selectedPlaylist.external_urls && selectedPlaylist.external_urls.spotify) {
-      setPlaylistUrl(selectedPlaylist.external_urls.spotify);
-    } else {
-      setPlaylistUrl(`https://open.spotify.com/playlist/${playlistId}`);
+    setSelectedPlaylistName(playlist?.name || 'Playlist');
+    setIsDownloadModalOpen(true);
+  };
+
+  const closeDownloadModal = () => {
+    if (!downloadStatus.isDownloading) {
+      setIsDownloadModalOpen(false);
+      setSelectedPlaylistForDownload('');
     }
-    setModalOpen(true);
   };
 
   //select dir
@@ -61,7 +68,7 @@ export default function Dashboard() {
 
     try {
       setDownloadingPlaylists((prev) => new Set(prev).add(selectedPlaylistForDownload));
-      setModalOpen(false);
+      setIsDownloadModalOpen(false);
       
       // Get the playlist URL
       const playlist = playlists.find((p) => p.id === selectedPlaylistForDownload);
@@ -72,28 +79,123 @@ export default function Dashboard() {
       console.log('Starting direct download process...');
       console.log('Playlist URL:', playlist.external_urls.spotify);
 
-      // Direct YouTube Music approach
-      // Check if playlist has tracks and handle different track structures
-      let trackCount = 0;
-      if (playlist.tracks) {
-        if ('items' in playlist.tracks && Array.isArray(playlist.tracks.items)) {
-          trackCount = playlist.tracks.items.length;
-        } else if ('total' in playlist.tracks) {
-          trackCount = playlist.tracks.total;
-        }
-      }
-      
-      if (trackCount === 0) {
-        throw new Error('No tracks found in this playlist');
-      }
+      try {
+        // Show initial download status
+        setDownloadStatus({
+          isDownloading: true,
+          message: 'Starting download...',
+          progress: 0,
+        });
 
-      alert(`Preparing to download ${trackCount} tracks from ${playlist.name}. This will open in a new tab.`);
-      
-      // Open Y2Mate directly with playlist name for better search results
-      const searchQuery = encodeURIComponent(`${playlist.name} playlist`);
-      window.open(`https://www.y2mate.com/youtube/${searchQuery}`, '_blank');
-      alert('A new tab has been opened. Search for your playlist and download your music.');
-      
+        // Call the backend server to start the download
+        const response = await fetch('https://reed-downloader.onrender.com/download', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            playlist_url: playlist.external_urls.spotify,
+            playlist_name: playlist.name
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.download_id) {
+          throw new Error('Invalid response from server: No download ID');
+        }
+
+        // Poll for download status
+        const downloadId = data.download_id;
+        let isCompleted = false;
+        let attempts = 0;
+        const MAX_ATTEMPTS = 300; // 10 minutes (2s * 300)
+        
+        const pollInterval = setInterval(async () => {
+          try {
+            attempts++;
+            
+            if (attempts >= MAX_ATTEMPTS) {
+              clearInterval(pollInterval);
+              setDownloadStatus({
+                isDownloading: false,
+                message: 'Download timed out. Please try again later.',
+                progress: 0,
+              });
+              return;
+            }
+
+            const statusResponse = await fetch(`https://reed-downloader.onrender.com/download/${downloadId}/status`);
+            
+            if (!statusResponse.ok) {
+              throw new Error(`Status check failed: ${statusResponse.status}`);
+            }
+            
+            const statusData = await statusResponse.json();
+            console.log('Download status:', statusData);
+            
+            // Update the UI with progress
+            setDownloadStatus({
+              isDownloading: true,
+              message: statusData.message || 'Processing...',
+              progress: statusData.progress || 0,
+            });
+
+            // Check if download is completed
+            if (statusData.status === 'completed' && statusData.filename) {
+              clearInterval(pollInterval);
+              isCompleted = true;
+              
+              // Show completed message
+              setDownloadStatus({
+                isDownloading: true,
+                message: 'Download completed! Starting file download...',
+                progress: 1,
+              });
+              
+              // Trigger file download
+              window.location.href = `https://reed-downloader.onrender.com/download/${downloadId}/file`;
+              
+              // Reset status after a delay
+              setTimeout(() => {
+                setDownloadStatus({
+                  isDownloading: false,
+                  message: '',
+                  progress: 0,
+                });
+              }, 3000);
+            }
+            
+            // Check for errors
+            if (statusData.status === 'error') {
+              clearInterval(pollInterval);
+              throw new Error(`Download error: ${statusData.message}`);
+            }
+            
+          } catch (error) {
+            clearInterval(pollInterval);
+            console.error('Error checking download status:', error);
+            setDownloadStatus({
+              isDownloading: false,
+              message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              progress: 0,
+            });
+          }
+        }, 2000); // Check every 2 seconds
+        
+      } catch (error) {
+        console.error('Download error:', error);
+        setDownloadStatus({
+          isDownloading: false,
+          message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          progress: 0,
+        });
+        alert(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     } catch (error) {
       console.error('Download failed:', error);
       alert(`Failed to prepare download: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -103,7 +205,7 @@ export default function Dashboard() {
         newSet.delete(selectedPlaylistForDownload);
         return newSet;
       });
-      setSelectedPlaylistForDownload(null);
+      setSelectedPlaylistForDownload('');
     }
   };
 
@@ -248,15 +350,13 @@ export default function Dashboard() {
       </section>
       <Footer />
       <DownloadModal
-        isOpen={modalOpen}
-        playlist={currentPlaylist}
-        selectedDirHandle={selectedDirHandle}
-        saveFormat={saveFormat}
-        playlistUrl={playlistUrl}
-        onClose={() => setModalOpen(false)}
-        onSelectFolder={handleSelectFolder}
+        isOpen={isDownloadModalOpen}
+        onClose={closeDownloadModal}
         onConfirm={startDownload}
-        onChangeFormat={setSaveFormat}
+        playlistName={selectedPlaylistName}
+        isDownloading={downloadStatus.isDownloading}
+        downloadStatus={downloadStatus.message}
+        downloadProgress={downloadStatus.progress}
       />
     </main>
   );
