@@ -69,71 +69,25 @@ export default function Dashboard() {
         throw new Error('Playlist not found');
       }
 
-      console.log('Sending request to downloader service...');
+      console.log('Starting direct download process...');
       console.log('Playlist URL:', playlist.external_urls.spotify);
 
-      // Call the downloader service
-      const response = await fetch('https://reed-downloader.onrender.com/download', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          playlist_url: playlist.external_urls.spotify
-        })
-      });
-
-      console.log('Response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Download failed:', errorData);
-        
-        let errorMessage = errorData.detail || 'Unknown error';
-        
-        // Handle specific error cases
-        if (errorData.stdout) {
-          console.error('Command output:', errorData.stdout);
-        }
-        
-        if (errorData.stderr) {
-          console.error('Command errors:', errorData.stderr);
-        }
-        
-        throw new Error(`Download failed: ${errorMessage}`);
+      // Direct YouTube Music approach
+      const tracks = playlist.tracks.items || [];
+      if (!tracks.length) {
+        throw new Error('No tracks found in this playlist');
       }
 
-      // Check content type to make sure we received a zip file
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/zip')) {
-        console.error('Received non-zip response:', contentType);
-        throw new Error('Server did not return a zip file. Please try again.');
-      }
+      alert(`Preparing to download ${tracks.length} tracks from ${playlist.name}. This will open in a new tab.`);
 
-      // Get the zip file as a blob
-      const blob = await response.blob();
-      console.log('Received blob:', blob.size, 'bytes');
+      // Use yt-dlp.org website for direct downloads
+      window.open(`https://www.y2mate.com/youtube-playlist/${playlist.external_urls.spotify}`, '_blank');
       
-      if (blob.size < 1000) {
-        throw new Error('Downloaded file is empty or too small. No songs were downloaded.');
-      }
-      
-      // Create a download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${playlist.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.zip`;
-      
-      // Trigger the download
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
-      alert('Download complete! Check your downloads folder.');
+      alert('A new tab has been opened. Follow the instructions on that page to download your music.');
+
     } catch (error) {
       console.error('Download failed:', error);
-      alert(`Failed to download playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(`Failed to prepare download: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setDownloadingPlaylists((prev) => {
         const newSet = new Set(prev);

@@ -31,7 +31,12 @@ export default function DownloadModal({
         <h3 className="text-lg text-emerald-400 mb-2">
           {playlist?.name || 'Playlist'}
         </h3>
-        <h2 className="text-xl text-white mb-4">Save Playlist</h2>
+        <h2 className="text-xl font-semibold mb-4">Download Playlist</h2>
+        
+        <div className="mb-4 text-sm text-gray-600 bg-gray-100 p-3 rounded">
+          <p className="mb-2"><strong>Note:</strong> When you click "Download", we'll open a new tab to an online music downloader service.</p>
+          <p>Follow the instructions on that page to download your playlist.</p>
+        </div>
         
         <div className="mb-4">
           <button
